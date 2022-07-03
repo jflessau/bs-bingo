@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import './var.scss';
+
+body {
+  background: $white;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+}
+
+#app {
+  width: 100%;
+}
+
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+ol,
+li,
+select,
+input,
+textarea,
+label,
+a {
+  @apply text-raisin;
+  @apply font-mono;
+  padding: 0;
+  margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  @apply font-bold;
+}
+
+img {
+  object-fit: cover;
+}
+
+.container {
+  max-width: 720px;
+}
