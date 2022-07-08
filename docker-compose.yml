@@ -1,0 +1,11 @@
+version: '2'
+services:
+  postgres:
+    container_name: bs_bingo_postgres
+    image: postgres
+    environment:
+      POSTGRES_DB: bs_bingo
+      POSTGRES_USER: bs_bingo
+      POSTGRES_PASSWORD: muchsecretwow
+    ports:
+      - '8433:5432'

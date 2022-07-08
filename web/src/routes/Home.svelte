@@ -1,6 +1,22 @@
 <script lang="ts">
   import Templates from './../components/Templates.svelte';
   import { Link } from 'svelte-routing';
+  import { onMount } from 'svelte';
+  import { ApiClient } from './../api.svelte';
+  import { templatesStore, TemplatesStatus, Template } from './../store.svelte';
+
+  $: templatesData = $templatesStore;
+
+  onMount(async () => {
+    templatesStore.set({ ...templatesData, status: TemplatesStatus.LOADING });
+
+    ApiClient.listTemplates((_status: number, data: Array<Template>) => {
+      templatesStore.set({ ...templatesData, templates: data, status: TemplatesStatus.SUCCESS });
+    }).catch((err: any) => {
+      console.error(err);
+      templatesStore.set({ ...templatesData, status: TemplatesStatus.ERROR });
+    });
+  });
 </script>
 
 <h2 class="text-2xl mb-4 text-center">Bullshit Bingo</h2>

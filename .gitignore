@@ -4,6 +4,9 @@ web/dist
 web/dist-ssr
 web/*.local
 
+api/.env
+api/target
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
