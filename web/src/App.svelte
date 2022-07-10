@@ -16,7 +16,7 @@
   onMount(async () => {
     authStore.set(AuthStatus.LOADING);
 
-    ApiClient.authSetup((status: number) => {
+    await ApiClient.authSetup((status: number) => {
       if (status === 200) {
         authStore.set(AuthStatus.SUCCESS);
       } else {

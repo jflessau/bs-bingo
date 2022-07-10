@@ -68,6 +68,10 @@
     listTemplates(callback: any) {
       return this.client.get('/templates').then(response => callback(response.status, response.data));
     }
+
+    createTemplate(body: { title: string; fields: Array<string> }, callback: any) {
+      return this.client.post('/templates', body).then(response => callback(response.status, response.data));
+    }
   }
 
   export const ApiClient = new Client();

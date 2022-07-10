@@ -83,6 +83,7 @@ async fn main() {
         .route("/health", get(health))
         .route("/auth", get(handler::auth::setup))
         .route("/templates", get(handler::template::list))
+        .route("/templates", post(handler::template::create))
         .layer(middleware_stack)
         .layer(Extension(pool));
 

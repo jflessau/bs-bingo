@@ -24,7 +24,8 @@
   export interface Template {
     id: string;
     title: string;
-    word_amount: number;
+    fieldAmount: number;
+    owned: boolean;
   }
 
   export interface Templates {
@@ -33,4 +34,27 @@
   }
 
   export const templatesStore: Writable<Templates> = writable({ status: TemplatesStatus.IDLE, templates: [] });
+
+  // create template
+  export enum CreateTemplateStatus {
+    IDLE,
+    LOADING,
+    SUCCESS,
+    ERROR,
+  }
+
+  export interface CreateTemplateField {
+    id: string;
+    caption: string;
+  }
+
+  export interface CreateTemplateState {
+    status: CreateTemplateStatus;
+    template: { title: string; fields: Array<CreateTemplateField> };
+  }
+
+  export const createTemplateStore: Writable<CreateTemplateState> = writable({
+    status: CreateTemplateStatus.IDLE,
+    template: { title: '', fields: [] },
+  });
 </script>

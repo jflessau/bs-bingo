@@ -11,15 +11,16 @@ create table "identity".users (
 -- game templates
 create schema bingo;
 
-create type bingo.language as enum ('ger', 'eng');
-
 create table bingo.game_templates (
     id uuid not null primary key default uuid_generate_v4(),
     title text not null default 'unknown' check (
         length(title) > 0
-        and length(title) < 128
+        and length(title) <= 128
     ),
-    "language" bingo.language not null default 'eng',
+    "language" text check (
+        language = 'ger'
+        or language = 'eng'
+    ),
     public boolean not null default false,
     approved boolean not null default false,
     created_by uuid not null,
@@ -36,8 +37,8 @@ create table bingo.field_templates (
     id uuid not null primary key default uuid_generate_v4(),
     game_template_id uuid not null,
     caption text not null check (
-        length(caption) > 0
-        and length(caption) < 128
+        length(trim(caption)) > 0
+        and length(trim(caption)) <= 128
     )
 );
 
@@ -50,8 +51,8 @@ add
 create table bingo.games (
     id uuid not null primary key default uuid_generate_v4(),
     access_code text not null check (
-        length(access_code) > 0
-        and length(access_code) < 64
+        length(trim(access_code)) > 0
+        and length(trim(access_code)) < 64
     ),
     closed boolean not null default false,
     created_at timestamptz not null default now(),
