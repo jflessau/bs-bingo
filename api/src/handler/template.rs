@@ -5,6 +5,7 @@ use crate::{
 use axum::{extract::Extension, Json};
 use serde::{Deserialize, Serialize};
 use std::str;
+use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -49,6 +50,8 @@ pub async fn list(
         owned: v.owned.unwrap_or(false),
     })
     .collect::<Vec<TemplateOut>>();
+
+    sleep(Duration::from_millis(1000)).await;
 
     Ok(Json(templates))
 }
@@ -114,6 +117,8 @@ pub async fn create(
         .execute(pool)
         .await?;
     }
+
+    sleep(Duration::from_millis(1000)).await;
 
     Ok("Template successfully creates.".to_string())
 }

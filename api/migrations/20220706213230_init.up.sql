@@ -50,6 +50,7 @@ add
 -- games
 create table bingo.games (
     id uuid not null primary key default uuid_generate_v4(),
+    game_template_id uuid not null,
     access_code text not null check (
         length(trim(access_code)) > 0
         and length(trim(access_code)) < 64
@@ -64,7 +65,9 @@ alter table
 add
     constraint games_unique_access_code unique (access_code),
 add
-    constraint games_created_by_fkey foreign key (created_by) references "identity".users (id);
+    constraint games_created_by_fkey foreign key (created_by) references "identity".users (id),
+add
+    constraint games_game_template_id_fkey foreign key (game_template_id) references bingo.game_templates (id);
 
 -- fileds
 create table bingo.fields (

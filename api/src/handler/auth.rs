@@ -2,9 +2,8 @@ use crate::{
     error::{Error, Result},
     AppState,
 };
-use axum::{extract::Extension, Json};
+use axum::extract::Extension;
 use axum_extra::extract::cookie::{Cookie, CookieJar};
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use time::{Duration as CookieDuration, OffsetDateTime};
 use tokio::time::{sleep, Duration};

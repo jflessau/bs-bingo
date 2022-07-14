@@ -1,10 +1,10 @@
 use axum::{
     async_trait,
     extract::{Extension, FromRequest, RequestParts},
-    routing::{get, post, put},
+    routing::{get, post},
     Router,
 };
-use axum_extra::extract::cookie::{Cookie, CookieJar};
+use axum_extra::extract::cookie::CookieJar;
 use dotenv::dotenv;
 use http::{
     header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, COOKIE, USER_AGENT},
@@ -12,7 +12,6 @@ use http::{
 };
 use sqlx::postgres::PgPool;
 use std::{env, net::SocketAddr};
-use time::{Duration as CookieDuration, OffsetDateTime};
 use tower::ServiceBuilder;
 use tower_http::{
     cors::{CorsLayer, Origin},
@@ -84,6 +83,7 @@ async fn main() {
         .route("/auth", get(handler::auth::setup))
         .route("/templates", get(handler::template::list))
         .route("/templates", post(handler::template::create))
+        .route("/game", get(handler::game::ws))
         .layer(middleware_stack)
         .layer(Extension(pool));
 

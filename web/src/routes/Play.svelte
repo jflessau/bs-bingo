@@ -124,7 +124,6 @@
   });
 
   function addInput() {
-    console.log('add');
     let newInput: Input = {
       id: Math.floor(Math.random() * 1000000) + 1 + '',
       text: '',

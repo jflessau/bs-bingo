@@ -1,6 +1,8 @@
 <script lang="ts">
   import { ApiClient } from './../api.svelte';
   import { onMount } from 'svelte';
+  import { Circle } from 'svelte-loading-spinners';
+  import Button from './../components/Button.svelte';
 
   enum Status {
     IDLE,
@@ -17,8 +19,6 @@
   let status: Status = Status.IDLE;
   let title: string = '';
   let fields: Array<Field> = [];
-
-  $: console.log(status);
 
   onMount(async () => {
     for (let n = 0; n < 9; n++) {
@@ -52,7 +52,7 @@
   }
 </script>
 
-{#if status === Status.IDLE || status === Status.LOADING}
+{#if status === Status.IDLE}
   <h2 class="text-2xl mb-4">Vorlage erstellen</h2>
 
   <h3 class="mt-8 mb-2">Titel</h3>
@@ -78,23 +78,19 @@
     {/each}
   </div>
 
-  <div
-    class="w-fit mt-4 bg-sky rounded-lg px-4 py-2 select-none cursor-pointer hover:brightness-105 active:brightness-95"
-    on:click="{addInput}"
-  >
-    <p class="text-solitude font-bold">Feld hinzufügen</p>
-  </div>
+  <Button on:click="{addInput}" caption="Feld Hinzufügen" variant="secondary" classes="mt-4" />
 
   {#if fields.filter(v => v.caption.trim().length > 0).length >= 9 && title.trim().length > 0}
-    <div
-      class="w-fit mt-16 bg-sun rounded-lg px-4 py-2 select-none cursor-pointer hover:brightness-105 active:brightness-95"
-      on:click="{createTemplate}"
-    >
-      <p class="text-solitude font-bold">Speichern</p>
-    </div>
+    <Button caption="Speichern" classes="mt-16" on:click="{createTemplate}" />
   {:else}
-    <div class="w-fit mt-16 bg-sun rounded-lg px-4 py-2 select-none cursor-pointer saturate-0">
-      <p class="text-solitude font-bold">Speichern</p>
-    </div>
+    <Button caption="Speichern" disabled classes="mt-16" />
   {/if}
-{:else if status === Status.SUCCESS}{:else}{/if}
+{:else if status === Status.SUCCESS}
+  <p class="text-center mb-8">Vorlage gespeichert!</p>
+
+  <div class="flex justify-center items-center mb-16">
+    <Button link="/templates" caption="Zu meinen Vorlagen" />
+  </div>
+{:else if status === Status.LOADING}
+  <div class="flex justify-center items-center mt-4"><Circle size="60" color="#009ffd" /></div>
+{:else}<p>An Error occurred.</p>{/if}
