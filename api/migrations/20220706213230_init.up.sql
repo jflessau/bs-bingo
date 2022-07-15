@@ -74,6 +74,7 @@ create table bingo.fields (
     id uuid not null primary key default uuid_generate_v4(),
     game_id uuid not null,
     field_template_id uuid not null,
+    position smallint not null,
     checked boolean not null default false,
     "user_id" uuid not null
 );

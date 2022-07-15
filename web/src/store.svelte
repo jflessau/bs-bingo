@@ -3,6 +3,7 @@
   import type { Writable } from 'svelte/store';
 
   // auth
+
   export enum AuthStatus {
     IDLE,
     LOADING,
@@ -36,6 +37,7 @@
   export const templatesStore: Writable<Templates> = writable({ status: TemplatesStatus.IDLE, templates: [] });
 
   // create template
+
   export enum CreateTemplateStatus {
     IDLE,
     LOADING,
@@ -57,4 +59,40 @@
     status: CreateTemplateStatus.IDLE,
     template: { title: '', fields: [] },
   });
+
+  // game
+
+  export interface Field {
+    id: string;
+    text: string;
+    position: number;
+    checked: boolean;
+    bingo: boolean;
+  }
+
+  export interface Player {
+    id: string;
+    name: string;
+    bingos: number;
+    hits: Array<number>;
+  }
+
+  export interface GameUpdate {
+    id: string;
+    open: boolean;
+    accessCode: string;
+  }
+
+  export interface StartGame {
+    gameTemplateId: string;
+  }
+
+  export interface JoinGame {
+    accessCode: string;
+  }
+
+  export interface FieldUpdate {
+    id: string;
+    checked: boolean;
+  }
 </script>

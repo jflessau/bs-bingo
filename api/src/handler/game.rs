@@ -9,19 +9,24 @@ use axum::{
     },
     response::IntoResponse,
 };
+use itertools::Itertools;
 use rand::{distributions::Alphanumeric, seq::SliceRandom, thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPool;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FieldOut {
     id: Uuid,
+    text: String,
     position: u32,
     checked: bool,
+    bingo: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlayerOut {
     id: Uuid,
     name: String,
@@ -30,16 +35,28 @@ pub struct PlayerOut {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum MessageIn {
+    #[serde(rename_all = "camelCase")]
     StartGame { game_template_id: Uuid },
+    #[serde(rename_all(deserialize = "camelCase"))]
     JoinGame { access_code: String },
+    #[serde(rename_all = "camelCase")]
     FieldUpdate { id: Uuid, checked: bool },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all(serialize = "camelCase"))]
 pub enum MessageOut {
-    GameUpdate { id: Uuid, open: bool, access_code: String },
-    FieldsUpdate(Vec<FieldOut>),
+    #[serde(rename_all(serialize = "camelCase"))]
+    GameUpdate {
+        id: Uuid,
+        open: bool,
+        access_code: String,
+    },
+    #[serde(rename_all(serialize = "camelCase"))]
+    FieldsUpdate(Vec<Vec<FieldOut>>),
+    #[serde(rename_all(serialize = "camelCase"))]
     PlayersUpdate(Vec<PlayerOut>),
 }
 
@@ -50,6 +67,8 @@ pub async fn ws(
     Extension(state): Extension<AppState>,
 ) -> impl IntoResponse {
     let pool = state.pool;
+
+    tracing::info!("start ws");
 
     ws.on_upgrade(move |socket| async move { handle_socket(socket, pool, identity.user_id).await })
 }
@@ -83,6 +102,7 @@ async fn handle_socket(mut socket: WebSocket, pool: PgPool, user_id: Uuid) {
 }
 
 async fn respond(text: String, pool: &PgPool, user_id: Uuid) -> Result<Vec<String>> {
+    tracing::info!("text: {}", text);
     let message: MessageIn = serde_json::from_str(&text)?;
 
     match message {
@@ -130,13 +150,115 @@ async fn start_game(game_template_id: Uuid, user_id: Uuid, pool: &PgPool) -> Res
     .await?;
 
     responses.push(MessageOut::GameUpdate {
-        id: game.id
+        id: game.id,
         open: true,
         access_code: game.access_code,
     });
 
-    // Create fields
+    create_fields(game_template_id, game.id, user_id, pool).await?;
 
+    let fields = get_fields(game.id, user_id, pool).await?;
+
+    responses.push(MessageOut::FieldsUpdate(fields));
+
+    // TODO: get players and add them to response
+
+    Ok(responses
+        .iter()
+        .map(|v| serde_json::to_string(&v).expect("Fails to serialize MessageOut."))
+        .collect::<Vec<String>>())
+}
+
+async fn join_game(access_code: String, user_id: Uuid, pool: &PgPool) -> Result<Vec<String>> {
+    let mut responses: Vec<MessageOut> = Vec::new();
+
+    let game = sqlx::query!(
+        r#"
+            select 
+                gt.id as game_template_id, 
+                g.id as id,
+                g.closed as closed,
+                g.access_code as access_code
+            from 
+                bingo.games as g
+            inner join
+                bingo.game_templates as gt on g.game_template_id = gt.id
+            where 
+                g.access_code = $1
+        "#,
+        access_code
+    )
+    .fetch_one(pool)
+    .await?;
+
+    responses.push(MessageOut::GameUpdate {
+        id: game.id,
+        open: !game.closed,
+        access_code: game.access_code,
+    });
+
+    let fields = get_fields(game.id, user_id, pool).await?;
+
+    if fields.is_empty() {
+        create_fields(game.game_template_id, game.id, user_id, pool).await?;
+        let fields = get_fields(game.id, user_id, pool).await?;
+    }
+
+    responses.push(MessageOut::FieldsUpdate(fields));
+
+    // TODO: get players and add them to response
+
+    Ok(responses
+        .iter()
+        .map(|v| serde_json::to_string(&v).expect("Fails to serialize MessageOut."))
+        .collect::<Vec<String>>())
+}
+
+async fn update_field(
+    id: Uuid,
+    checked: bool,
+    user_id: Uuid,
+    pool: &PgPool,
+) -> Result<Vec<String>> {
+    let game = sqlx::query!(
+        r#"
+            select
+                g.id as id
+            from 
+                bingo.fields as f
+            inner join 
+                bingo.games as g on f.game_id = g.id
+            where 
+                f.id = $1 and f.user_id = $2 and g.closed = false
+        "#,
+        id,
+        user_id,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    sqlx::query!(
+        "update bingo.fields set checked = $1 where id = $2",
+        checked,
+        id
+    )
+    .execute(pool)
+    .await?;
+
+    let fields = get_fields(game.id, user_id, pool).await?;
+
+    Ok(vec![serde_json::to_string(&MessageOut::FieldsUpdate(
+        fields,
+    ))
+    .expect("Fails to serialize MessageOut.")])
+}
+
+async fn create_fields(
+    game_template_id: Uuid,
+    game_id: Uuid,
+    user_id: Uuid,
+    pool: &PgPool,
+) -> Result<()> {
     let mut field_templates = sqlx::query!(
         r#"
             select * from bingo.field_templates
@@ -151,61 +273,70 @@ async fn start_game(game_template_id: Uuid, user_id: Uuid, pool: &PgPool) -> Res
 
     let mut fields: Vec<FieldOut> = Vec::new();
     for (i, field_template) in field_templates.iter().enumerate() {
-        let field = sqlx::query!(
+        sqlx::query!(
             r#"
-                insert into bingo.fields (game_id, field_template_id, user_id)
-                values ($1, $2, $3)
-                returning * 
+                insert into bingo.fields (game_id, field_template_id, position, user_id)
+                values ($1, $2, $3, $4)
             "#,
-            game.id,
+            game_id,
             field_template.id,
+            i as i16,
             user_id,
         )
-        .fetch_one(pool)
+        .execute(pool)
         .await?;
-
-        fields.push(FieldOut {
-            id: field.id,
-            position: i as u32,
-            checked: false,
-        })
     }
 
-    responses.push(MessageOut::FieldsUpdate(fields));
-
-    // TODO: get players and add them to response
-
-    Ok(responses
-        .iter()
-        .map(|v| serde_json::to_string(&v).expect("Failes to serialize MessageOut."))
-        .collect::<Vec<String>>())
+    Ok(())
 }
 
-async fn join_game(code: String, user_id: Uuid, pool: &PgPool) -> Result<Vec<String>> {
-    // TODO: get game
-    // TODO: check code
-    // TODO: get field_templates
-    // TODO: create fields
-    // TODO: get players
-    // TODO: respond with game, fields and players
-    Ok(vec!["Hi".to_string()])
-}
+async fn get_fields(game_id: Uuid, user_id: Uuid, pool: &PgPool) -> Result<Vec<Vec<FieldOut>>> {
+    let mut fields = sqlx::query!(
+        r#"
+            select 
+                f.id as id,
+                f.checked as checked,
+                ft.caption as caption
+            from bingo.fields as f
+            inner join bingo.field_templates as ft 
+                on f.field_template_id = ft.id
+            where 
+                f.game_id = $1 and f.user_id = $2
+            order by 
+                position
+        "#,
+        game_id,
+        user_id,
+    )
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .map(|v| FieldOut {
+        id: v.id,
+        text: v.caption,
+        position: 0,
+        checked: v.checked,
+        bingo: false,
+    })
+    .collect::<Vec<FieldOut>>();
 
-async fn update_field(
-    id: Uuid,
-    checked: bool,
-    user_id: Uuid,
-    pool: &PgPool,
-) -> Result<Vec<String>> {
-    // let field = sqlx::query!(
-    //     r#"
-    //         select id from bingo.games where id = $1 and closed = false
-    //     "#,
-        
-    // )
-    // TODO: ensure game is was not closed
-    // TODO: update field
-    // TODO: respond with fields
+    // TODO: figure our how to solve this with iter().chunks(5)
 
-    Ok(vec!["Hi".to_string()])
+    let mut result: Vec<Vec<FieldOut>> = Vec::new();
+    let mut v: Vec<FieldOut> = Vec::new();
+    for (i, field) in fields.into_iter().enumerate() {
+        let n = i + 1;
+        if n % 5 == 0 {
+            if n == 5 {
+                result = vec![v]
+            } else {
+                result.push(v);
+            }
+            v = Vec::new();
+        } else {
+            v.push(field);
+        }
+    }
+
+    Ok(result)
 }
