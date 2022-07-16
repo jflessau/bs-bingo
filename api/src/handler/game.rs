@@ -13,6 +13,7 @@ use itertools::Itertools;
 use rand::{distributions::Alphanumeric, seq::SliceRandom, thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPool;
+use std::sync::mpsc::{channel, Receiver, Sender};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -28,10 +29,10 @@ pub struct FieldOut {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerOut {
-    id: Uuid,
-    name: String,
+    user_id: Uuid,
+    username: String,
     bingos: i32,
-    hits: Vec<i32>,
+    hits: Vec<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -68,22 +69,38 @@ pub async fn ws(
 ) -> impl IntoResponse {
     let pool = state.pool;
 
-    tracing::info!("start ws");
-
     ws.on_upgrade(move |socket| async move { handle_socket(socket, pool, identity.user_id).await })
 }
 
 async fn handle_socket(mut socket: WebSocket, pool: PgPool, user_id: Uuid) {
+    tracing::info!("handle socket");
+
+    let (tx, rx) = channel();
+
+    tokio::join!(digest(&pool, user_id, tx), send_messages(socket, rx));
+}
+
+async fn send_messages(mut socket: WebSocket, rx: Receiver<Vec<String>>) {
+    loop {
+        if let Ok(responses) = rx.recv() {
+            for response in responses {
+                if let Err(err) = socket.send(Message::Text(response)).await {
+                    tracing::error!("Failed to send response: {:?}", err);
+                }
+            }
+        }
+    }
+}
+
+async fn digest(pool: &PgPool, user_id: Uuid, tx: Sender<Vec<String>>) {
     while let Some(msg) = socket.recv().await {
         if let Ok(msg) = msg {
             match msg {
                 Message::Text(text) => match respond(text, &pool, user_id).await {
                     Ok(responses) => {
-                        for response in responses {
-                            if let Err(err) = socket.send(Message::Text(response)).await {
-                                tracing::error!("Failed to send response: {:?}", err);
-                            }
-                        }
+                        tracing::info!("responses: {}", responses.len());
+                        tx.send(responses)
+                            .expect("Sending responses via mpsc failes.");
                     }
                     Err(err) => {
                         tracing::error!("Failed to get responses: {:?}", err)
@@ -116,8 +133,6 @@ async fn respond(text: String, pool: &PgPool, user_id: Uuid) -> Result<Vec<Strin
 
 async fn start_game(game_template_id: Uuid, user_id: Uuid, pool: &PgPool) -> Result<Vec<String>> {
     let mut responses: Vec<MessageOut> = Vec::new();
-
-    // Create game
 
     let game_template = sqlx::query!(
         r#"
@@ -155,13 +170,11 @@ async fn start_game(game_template_id: Uuid, user_id: Uuid, pool: &PgPool) -> Res
         access_code: game.access_code,
     });
 
-    create_fields(game_template_id, game.id, user_id, pool).await?;
-
-    let fields = get_fields(game.id, user_id, pool).await?;
-
+    let fields = get_fields(game.game_template_id, game.id, user_id, pool).await?;
     responses.push(MessageOut::FieldsUpdate(fields));
 
-    // TODO: get players and add them to response
+    let players = get_players(game.id, pool).await?;
+    responses.push(MessageOut::PlayersUpdate(players));
 
     Ok(responses
         .iter()
@@ -197,16 +210,11 @@ async fn join_game(access_code: String, user_id: Uuid, pool: &PgPool) -> Result<
         access_code: game.access_code,
     });
 
-    let fields = get_fields(game.id, user_id, pool).await?;
-
-    if fields.is_empty() {
-        create_fields(game.game_template_id, game.id, user_id, pool).await?;
-        let fields = get_fields(game.id, user_id, pool).await?;
-    }
-
+    let fields = get_fields(game.game_template_id, game.id, user_id, pool).await?;
     responses.push(MessageOut::FieldsUpdate(fields));
 
-    // TODO: get players and add them to response
+    let players = get_players(game.id, pool).await?;
+    responses.push(MessageOut::PlayersUpdate(players));
 
     Ok(responses
         .iter()
@@ -220,10 +228,13 @@ async fn update_field(
     user_id: Uuid,
     pool: &PgPool,
 ) -> Result<Vec<String>> {
+    let mut responses: Vec<MessageOut> = Vec::new();
+
     let game = sqlx::query!(
         r#"
             select
-                g.id as id
+                g.id as id,
+                g.game_template_id as game_template_id
             from 
                 bingo.fields as f
             inner join 
@@ -245,12 +256,16 @@ async fn update_field(
     .execute(pool)
     .await?;
 
-    let fields = get_fields(game.id, user_id, pool).await?;
+    let fields = get_fields(game.game_template_id, game.id, user_id, pool).await?;
+    responses.push(MessageOut::FieldsUpdate(fields));
 
-    Ok(vec![serde_json::to_string(&MessageOut::FieldsUpdate(
-        fields,
-    ))
-    .expect("Fails to serialize MessageOut.")])
+    let players = get_players(game.id, pool).await?;
+    responses.push(MessageOut::PlayersUpdate(players));
+
+    Ok(responses
+        .iter()
+        .map(|v| serde_json::to_string(&v).expect("Fails to serialize MessageOut."))
+        .collect::<Vec<String>>())
 }
 
 async fn create_fields(
@@ -290,7 +305,51 @@ async fn create_fields(
     Ok(())
 }
 
-async fn get_fields(game_id: Uuid, user_id: Uuid, pool: &PgPool) -> Result<Vec<Vec<FieldOut>>> {
+async fn get_fields(
+    game_template_id: Uuid,
+    game_id: Uuid,
+    user_id: Uuid,
+    pool: &PgPool,
+) -> Result<Vec<Vec<FieldOut>>> {
+    let existing_fields = sqlx::query!(
+        r#"
+            select 
+                f.id
+            from bingo.fields as f
+            inner join bingo.field_templates as ft 
+                on f.field_template_id = ft.id
+            where 
+                f.game_id = $1 and f.user_id = $2
+            order by 
+                position
+        "#,
+        game_id,
+        user_id,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    tracing::info!("existing_fields.len(): {}", existing_fields.len());
+
+    if existing_fields.is_empty() {
+        tracing::info!("create fields and players");
+
+        create_fields(game_template_id, game_id, user_id, pool).await?;
+        sqlx::query!(
+            r#"
+                insert into bingo.players ("user_id", game_id, "username")
+                values ($1, $2, $3)
+            "#,
+            user_id,
+            game_id,
+            "unknown player",
+        )
+        .execute(pool)
+        .await?;
+    } else {
+        tracing::info!("list fields and players");
+    }
+
     let mut fields = sqlx::query!(
         r#"
             select 
@@ -325,18 +384,51 @@ async fn get_fields(game_id: Uuid, user_id: Uuid, pool: &PgPool) -> Result<Vec<V
     let mut result: Vec<Vec<FieldOut>> = Vec::new();
     let mut v: Vec<FieldOut> = Vec::new();
     for (i, field) in fields.into_iter().enumerate() {
-        let n = i + 1;
-        if n % 5 == 0 {
-            if n == 5 {
+        if i % 5 == 0 {
+            if i == 5 {
                 result = vec![v]
             } else {
                 result.push(v);
             }
-            v = Vec::new();
+            v = vec![field];
         } else {
             v.push(field);
         }
     }
 
+    result.push(v);
+
     Ok(result)
+}
+
+async fn get_players(game_id: Uuid, pool: &PgPool) -> Result<Vec<PlayerOut>> {
+    let players = sqlx::query!(
+        r#"
+            select
+                p.user_id as user_id,
+                p.username as "username",
+                array_agg(f.checked order by f.position asc) as hits
+            from 
+                bingo.players as p
+            join bingo.fields as f on f.user_id = p.user_id
+            join bingo.field_templates as ft on f.field_template_id = ft.id
+            where 
+                p.game_id = $1 and f.game_id = $1
+            
+            group by p.user_id, p.username
+        "#,
+        game_id,
+    )
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .map(|v| PlayerOut {
+        user_id: v.user_id,
+        username: v.username,
+        bingos: 0, // TODO
+        hits: v.hits.unwrap_or(vec![]),
+    })
+    .collect::<Vec<PlayerOut>>();
+
+    Ok(players)
 }

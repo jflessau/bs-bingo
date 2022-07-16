@@ -68,6 +68,9 @@
       } else if (data.fieldsUpdate) {
         let fieldsUpdate: Array<Array<Field>> = data.fieldsUpdate;
         fields = fieldsUpdate;
+      } else if (data.playersUpdate) {
+        let playersUpdate: Array<Player> = data.playersUpdate;
+        players = playersUpdate;
       }
     });
   });
@@ -121,20 +124,20 @@
         </div>
       {/if}
     </div>
-    <!-- {#each players as { id, name, hits, bingos }, i}
-    <div class="w-full mt-2 flex flex-row justify-start items-center rounded bg-sky p-2">
-      <div class="grid grid-cols-5 overflow-hidden rounded">
-        {#each Array(25) as n, i}
-          <div class="w-3 h-3 {hits.includes(i) ? 'bg-sun' : 'bg-solitude'}"></div>
-        {/each}
+    {#each players as { username, hits, bingos }, i}
+      <div class="w-full mt-2 flex flex-row justify-start items-center rounded bg-sky p-2">
+        <div class="grid grid-cols-5 overflow-hidden rounded">
+          {#each hits as hit, i}
+            <div class="w-3 h-3 {hit ? 'bg-sun' : 'bg-solitude'}"></div>
+          {/each}
+        </div>
+        <div class="flex flex-col ml-8">
+          <p class="text-sm text-solitude font-bold">#{i + 1} {username}</p>
+          <p class="text-sm text-solitude">
+            {bingos} Bingo{bingos !== 1 ? 's' : ''}, {hits.filter(v => v).length} Hit{hits.length !== 1 ? 's' : ''}
+          </p>
+        </div>
       </div>
-      <div class="flex flex-col ml-8">
-        <p class="text-sm text-solitude font-bold">#{i + 1} {name}</p>
-        <p class="text-sm text-solitude">
-          {bingos} Bingo{bingos !== 1 ? 's' : ''}, {hits.length}Hit{hits.length !== 1 ? 's' : ''}
-        </p>
-      </div>
-    </div>
-  {/each} -->
+    {/each}
   </div>
 {/if}

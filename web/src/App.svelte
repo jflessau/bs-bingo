@@ -2,7 +2,7 @@
   import './style/main.scss';
   import Home from './routes/Home.svelte';
   import Templates from './routes/Templates.svelte';
-  import Play from './routes/Play.svelte';
+  import Game from './routes/Game.svelte';
   import CreateTemplate from './routes/CreateTemplate.svelte';
   import Nav from './components/Nav.svelte';
   import { Router, Route } from 'svelte-routing';
@@ -45,8 +45,8 @@
   {#if authData === AuthStatus.SUCCESS}
     <div class="container mx-auto px-2">
       <Route path="/" component="{Home}" />
-      <Route path="/game/start/:id" component="{Play}" />
-      <Route path="/game/join/:accessCode" component="{Play}" />
+      <Route path="/games/start/:id" component="{Game}" />
+      <Route path="/games/join/:accessCode" component="{Game}" />
       <Route path="/templates" component="{Templates}" />
       <Route path="/create-template" component="{CreateTemplate}" />
     </div>

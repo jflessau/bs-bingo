@@ -71,10 +71,10 @@
   }
 
   export interface Player {
-    id: string;
-    name: string;
+    iduserId: string;
+    username: string;
     bingos: number;
-    hits: Array<number>;
+    hits: Array<bool>;
   }
 
   export interface GameUpdate {

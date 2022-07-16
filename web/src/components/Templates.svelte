@@ -41,7 +41,7 @@
           {fieldAmount} Wörter
         </p>
       </div>
-      <Button caption="Spielen" size="sm" variant="secondary" link="{`/game/start/${id}`}" />
+      <Button caption="Spielen" size="sm" variant="secondary" link="{`/games/start/${id}`}" />
     </div>
   {/each}
 {/if}
