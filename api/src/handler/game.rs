@@ -1,19 +1,17 @@
-use crate::{
-    error::{Error, Result},
-    AppState, Identity,
-};
+use crate::{error::Result, AppState, Identity};
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Extension, TypedHeader,
+        Extension, Path, TypedHeader,
     },
     response::IntoResponse,
+    Json,
 };
-use itertools::Itertools;
+use tokio::time::{sleep, Duration};
+
 use rand::{distributions::Alphanumeric, seq::SliceRandom, thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPool;
-use std::sync::mpsc::{channel, Receiver, Sender};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -36,17 +34,6 @@ pub struct PlayerOut {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum MessageIn {
-    #[serde(rename_all = "camelCase")]
-    StartGame { game_template_id: Uuid },
-    #[serde(rename_all(deserialize = "camelCase"))]
-    JoinGame { access_code: String },
-    #[serde(rename_all = "camelCase")]
-    FieldUpdate { id: Uuid, checked: bool },
-}
-
-#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all(serialize = "camelCase"))]
 pub enum MessageOut {
     #[serde(rename_all(serialize = "camelCase"))]
@@ -65,76 +52,92 @@ pub async fn ws(
     ws: WebSocketUpgrade,
     _user_agent: Option<TypedHeader<headers::UserAgent>>,
     identity: Identity,
+    Path(game_id): Path<Uuid>,
     Extension(state): Extension<AppState>,
 ) -> impl IntoResponse {
     let pool = state.pool;
 
-    ws.on_upgrade(move |socket| async move { handle_socket(socket, pool, identity.user_id).await })
+    ws.on_upgrade(move |socket| async move {
+        handle_socket(socket, &pool, identity.user_id, game_id).await
+    })
 }
 
-async fn handle_socket(mut socket: WebSocket, pool: PgPool, user_id: Uuid) {
-    tracing::info!("handle socket");
+async fn handle_socket(mut socket: WebSocket, pool: &PgPool, user_id: Uuid, game_id: Uuid) {
+    let mut socket_healthy = true;
 
-    let (tx, rx) = channel();
+    while socket_healthy {
+        sleep(Duration::from_millis(100)).await;
 
-    tokio::join!(digest(&pool, user_id, tx), send_messages(socket, rx));
-}
+        // check if game exists
 
-async fn send_messages(mut socket: WebSocket, rx: Receiver<Vec<String>>) {
-    loop {
-        if let Ok(responses) = rx.recv() {
-            for response in responses {
-                if let Err(err) = socket.send(Message::Text(response)).await {
-                    tracing::error!("Failed to send response: {:?}", err);
-                }
+        let game = sqlx::query!(
+            r#"
+                select 
+                    g.game_template_id
+                from 
+                    bingo.games g
+                inner join
+                    bingo.players p on p.game_id = g.id
+                where 
+                    p.user_id = $1 and g.id = $2 and closed = false
+            "#,
+            user_id,
+            game_id,
+        )
+        .fetch_one(pool)
+        .await
+        .expect("checking game existence failes");
+
+        let mut messages = Vec::new();
+
+        // get players
+
+        let players = get_players(game_id, pool)
+            .await
+            .expect("get_players failes");
+        messages.push(
+            serde_json::to_string(&MessageOut::PlayersUpdate(players))
+                .expect("Fails to serialize MessageOut."),
+        );
+
+        // get fields
+
+        let fields = get_fields(game.game_template_id, game_id, user_id, pool)
+            .await
+            .expect("get_players failes");
+        messages.push(
+            serde_json::to_string(&MessageOut::FieldsUpdate(fields))
+                .expect("Fails to serialize MessageOut."),
+        );
+
+        for message in messages {
+            if let Err(err) = socket.send(Message::Text(message)).await {
+                tracing::warn!("Failed to send message: {:?}", err);
+                socket_healthy = false;
             }
         }
     }
 }
 
-async fn digest(pool: &PgPool, user_id: Uuid, tx: Sender<Vec<String>>) {
-    while let Some(msg) = socket.recv().await {
-        if let Ok(msg) = msg {
-            match msg {
-                Message::Text(text) => match respond(text, &pool, user_id).await {
-                    Ok(responses) => {
-                        tracing::info!("responses: {}", responses.len());
-                        tx.send(responses)
-                            .expect("Sending responses via mpsc failes.");
-                    }
-                    Err(err) => {
-                        tracing::error!("Failed to get responses: {:?}", err)
-                    }
-                },
-                Message::Binary(_) => {}
-                Message::Ping(_) => {}
-                Message::Pong(_) => {}
-                Message::Close(_) => {}
-            }
-        } else {
-            tracing::debug!("client disconnected");
-            return;
-        }
-    }
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all(serialize = "camelCase"))]
+pub struct GameUpdateOut {
+    pub id: Uuid,
+    pub open: bool,
+    pub access_code: String,
+    pub fields: Vec<Vec<FieldOut>>,
+    pub players: Vec<PlayerOut>,
 }
 
-async fn respond(text: String, pool: &PgPool, user_id: Uuid) -> Result<Vec<String>> {
-    tracing::info!("text: {}", text);
-    let message: MessageIn = serde_json::from_str(&text)?;
+pub async fn handle_start_game(
+    identity: Identity,
+    Path(game_template_id): Path<Uuid>,
+    Extension(state): Extension<AppState>,
+) -> Result<Json<GameUpdateOut>> {
+    let pool = state.pool;
+    let user_id = identity.user_id;
 
-    match message {
-        MessageIn::StartGame { game_template_id } => {
-            start_game(game_template_id, user_id, pool).await
-        }
-        MessageIn::JoinGame { access_code } => join_game(access_code, user_id, pool).await,
-        MessageIn::FieldUpdate { id, checked } => update_field(id, checked, user_id, pool).await,
-    }
-}
-
-async fn start_game(game_template_id: Uuid, user_id: Uuid, pool: &PgPool) -> Result<Vec<String>> {
-    let mut responses: Vec<MessageOut> = Vec::new();
-
-    let game_template = sqlx::query!(
+    let _game_template = sqlx::query!(
         r#"
             select * from bingo.game_templates
             where id = $1 and (created_by = $2 or approved = true)
@@ -142,7 +145,7 @@ async fn start_game(game_template_id: Uuid, user_id: Uuid, pool: &PgPool) -> Res
         game_template_id,
         user_id
     )
-    .fetch_one(pool)
+    .fetch_one(&pool)
     .await?;
 
     let game_access_code: String = thread_rng()
@@ -161,29 +164,29 @@ async fn start_game(game_template_id: Uuid, user_id: Uuid, pool: &PgPool) -> Res
         game_access_code,
         user_id
     )
-    .fetch_one(pool)
+    .fetch_one(&pool)
     .await?;
 
-    responses.push(MessageOut::GameUpdate {
+    let fields = get_fields(game.game_template_id, game.id, user_id, &pool).await?;
+
+    let players = get_players(game.id, &pool).await?;
+
+    Ok(Json(GameUpdateOut {
         id: game.id,
         open: true,
         access_code: game.access_code,
-    });
-
-    let fields = get_fields(game.game_template_id, game.id, user_id, pool).await?;
-    responses.push(MessageOut::FieldsUpdate(fields));
-
-    let players = get_players(game.id, pool).await?;
-    responses.push(MessageOut::PlayersUpdate(players));
-
-    Ok(responses
-        .iter()
-        .map(|v| serde_json::to_string(&v).expect("Fails to serialize MessageOut."))
-        .collect::<Vec<String>>())
+        fields,
+        players,
+    }))
 }
 
-async fn join_game(access_code: String, user_id: Uuid, pool: &PgPool) -> Result<Vec<String>> {
-    let mut responses: Vec<MessageOut> = Vec::new();
+pub async fn handle_join_game(
+    identity: Identity,
+    Path(access_code): Path<String>,
+    Extension(state): Extension<AppState>,
+) -> Result<Json<GameUpdateOut>> {
+    let pool = state.pool;
+    let user_id = identity.user_id;
 
     let game = sqlx::query!(
         r#"
@@ -201,36 +204,31 @@ async fn join_game(access_code: String, user_id: Uuid, pool: &PgPool) -> Result<
         "#,
         access_code
     )
-    .fetch_one(pool)
+    .fetch_one(&pool)
     .await?;
 
-    responses.push(MessageOut::GameUpdate {
+    let fields = get_fields(game.game_template_id, game.id, user_id, &pool).await?;
+
+    let players = get_players(game.id, &pool).await?;
+
+    Ok(Json(GameUpdateOut {
         id: game.id,
         open: !game.closed,
         access_code: game.access_code,
-    });
-
-    let fields = get_fields(game.game_template_id, game.id, user_id, pool).await?;
-    responses.push(MessageOut::FieldsUpdate(fields));
-
-    let players = get_players(game.id, pool).await?;
-    responses.push(MessageOut::PlayersUpdate(players));
-
-    Ok(responses
-        .iter()
-        .map(|v| serde_json::to_string(&v).expect("Fails to serialize MessageOut."))
-        .collect::<Vec<String>>())
+        fields,
+        players,
+    }))
 }
 
-async fn update_field(
-    id: Uuid,
-    checked: bool,
-    user_id: Uuid,
-    pool: &PgPool,
-) -> Result<Vec<String>> {
-    let mut responses: Vec<MessageOut> = Vec::new();
+pub async fn handle_update_field(
+    identity: Identity,
+    Path(id): Path<Uuid>,
+    Extension(state): Extension<AppState>,
+) -> Result<()> {
+    let pool = state.pool;
+    let user_id = identity.user_id;
 
-    let game = sqlx::query!(
+    let _game = sqlx::query!(
         r#"
             select
                 g.id as id,
@@ -245,27 +243,44 @@ async fn update_field(
         id,
         user_id,
     )
-    .fetch_one(pool)
+    .fetch_one(&pool)
     .await?;
 
     sqlx::query!(
-        "update bingo.fields set checked = $1 where id = $2",
-        checked,
+        "update bingo.fields set checked = not checked where id = $1",
         id
     )
-    .execute(pool)
+    .execute(&pool)
     .await?;
 
-    let fields = get_fields(game.game_template_id, game.id, user_id, pool).await?;
-    responses.push(MessageOut::FieldsUpdate(fields));
+    Ok(())
+}
 
-    let players = get_players(game.id, pool).await?;
-    responses.push(MessageOut::PlayersUpdate(players));
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all(serialize = "camelCase"))]
+pub struct UsernameIn {
+    username: String,
+}
 
-    Ok(responses
-        .iter()
-        .map(|v| serde_json::to_string(&v).expect("Fails to serialize MessageOut."))
-        .collect::<Vec<String>>())
+pub async fn handle_update_username(
+    identity: Identity,
+    Json(username): Json<UsernameIn>,
+    Path(game_id): Path<Uuid>,
+    Extension(state): Extension<AppState>,
+) -> Result<()> {
+    let pool = state.pool;
+    let user_id = identity.user_id;
+
+    sqlx::query!(
+        "update bingo.players set username = $1 where user_id = $2 and game_id = $3",
+        username.username,
+        user_id,
+        game_id
+    )
+    .execute(&pool)
+    .await?;
+
+    Ok(())
 }
 
 async fn create_fields(
@@ -286,7 +301,6 @@ async fn create_fields(
 
     field_templates.shuffle(&mut thread_rng());
 
-    let mut fields: Vec<FieldOut> = Vec::new();
     for (i, field_template) in field_templates.iter().enumerate() {
         sqlx::query!(
             r#"
@@ -329,11 +343,7 @@ async fn get_fields(
     .fetch_all(pool)
     .await?;
 
-    tracing::info!("existing_fields.len(): {}", existing_fields.len());
-
     if existing_fields.is_empty() {
-        tracing::info!("create fields and players");
-
         create_fields(game_template_id, game_id, user_id, pool).await?;
         sqlx::query!(
             r#"
@@ -346,11 +356,9 @@ async fn get_fields(
         )
         .execute(pool)
         .await?;
-    } else {
-        tracing::info!("list fields and players");
     }
 
-    let mut fields = sqlx::query!(
+    let fields = sqlx::query!(
         r#"
             select 
                 f.id as id,

@@ -74,21 +74,7 @@
     iduserId: string;
     username: string;
     bingos: number;
-    hits: Array<bool>;
-  }
-
-  export interface GameUpdate {
-    id: string;
-    open: boolean;
-    accessCode: string;
-  }
-
-  export interface StartGame {
-    gameTemplateId: string;
-  }
-
-  export interface JoinGame {
-    accessCode: string;
+    hits: Array<boolean>;
   }
 
   export interface FieldUpdate {

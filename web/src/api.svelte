@@ -72,6 +72,26 @@
     createTemplate(body: { title: string; fields: Array<string> }, callback: any) {
       return this.client.post('/templates', body).then(response => callback(response.status, response.data));
     }
+
+    // game
+
+    startGame(id: string, callback: any) {
+      return this.client.get(`/game/start/${id}`).then(response => callback(response.status, response.data));
+    }
+
+    joinGame(accessCoce: string, callback: any) {
+      return this.client.get(`/game/join/${accessCoce}`).then(response => callback(response.status, response.data));
+    }
+
+    updateUsername(id: string, username: string, callback: any) {
+      return this.client
+        .patch(`/game/${id}/username`, { username })
+        .then(response => callback(response.status, response.data));
+    }
+
+    updateField(id: string, callback: any) {
+      return this.client.patch(`/field/${id}`).then(response => callback(response.status, response.data));
+    }
   }
 
   export const ApiClient = new Client();

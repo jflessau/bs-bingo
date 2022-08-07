@@ -1,7 +1,8 @@
 <script lang="ts">
+  import Button from './../components/Button.svelte';
   import { onMount } from 'svelte';
-  import { apiWsUrl } from './../api.svelte';
-  import type { Player, Field, GameUpdate, StartGame, JoinGame } from './../store.svelte';
+  import { apiWsUrl, ApiClient } from './../api.svelte';
+  import type { Player, Field } from './../store.svelte';
 
   enum GameStatus {
     INIT,
@@ -11,61 +12,58 @@
     ERROR,
   }
 
-  interface StartGame {
-    gameTemplateId: string;
-  }
-
-  interface JoinGame {
-    accessCode: string;
-  }
-
-  interface FieldUpdate {
-    id: string;
-    checked: boolean;
-  }
-
-  interface GameUpdate {
-    id: string;
-    open: boolean;
-    accessCode: string;
-  }
-
-  export let id: string | undefined = undefined;
+  export let gameTemplateId: string | undefined = undefined;
   export let accessCode: string | undefined = undefined;
 
+  let id: string | undefined = undefined;
   let status: GameStatus = GameStatus.INIT;
   let code: string | undefined = undefined;
   let players: Array<Player> = [];
   let fields: Array<Array<Field>> = [];
   let websocket: any | undefined = undefined;
 
+  let newUsername: string | undefined = undefined;
+
   onMount(async () => {
-    websocket = new WebSocket(`${apiWsUrl}/game`);
-    websocket.addEventListener('open', event => {
-      if (id) {
-        const startGame: StartGame = {
-          gameTemplateId: id,
-        };
-        websocket.send(JSON.stringify({ startGame }));
-      } else if (accessCode) {
-        let joinGame: JoinGame = { accessCode };
-        websocket.send(JSON.stringify({ joinGame }));
-      } else {
+    if (gameTemplateId) {
+      await ApiClient.startGame(gameTemplateId, (_status: number, data: any) => {
+        code = data.accessCode;
+        fields = data.fields;
+        players = data.players;
+        status = GameStatus.OPEN;
+        id = data.id;
+      }).catch((err: any) => {
+        console.error(err);
         status = GameStatus.ERROR;
-      }
-    });
+      });
+
+      startWebSocket();
+    } else if (accessCode) {
+      await ApiClient.joinGame(accessCode, (_status: number, data: any) => {
+        code = data.accessCode;
+        fields = data.fields;
+        players = data.players;
+        status = GameStatus.OPEN;
+        id = data.id;
+      }).catch((err: any) => {
+        console.error(err);
+        status = GameStatus.ERROR;
+      });
+
+      startWebSocket();
+    } else {
+      console.error('no game id or accessCode found');
+      status = GameStatus.ERROR;
+    }
+  });
+
+  function startWebSocket() {
+    websocket = new WebSocket(`${apiWsUrl}/game/${id}`);
 
     websocket.addEventListener('message', event => {
       let data: any | undefined = event.data ? JSON.parse(event.data) : undefined;
-      if (data.gameUpdate) {
-        let gameUpdate: GameUpdate = data.gameUpdate;
-        if (gameUpdate.open) {
-          status = GameStatus.OPEN;
-        } else {
-          status = GameStatus.CLOSED;
-        }
-        code = gameUpdate.accessCode;
-      } else if (data.fieldsUpdate) {
+
+      if (data.fieldsUpdate) {
         let fieldsUpdate: Array<Array<Field>> = data.fieldsUpdate;
         fields = fieldsUpdate;
       } else if (data.playersUpdate) {
@@ -73,25 +71,48 @@
         players = playersUpdate;
       }
     });
-  });
+  }
 
-  function toggleField(id) {
-    let checked: boolean = false;
-    fields.forEach(v =>
-      v.forEach(v => {
-        if (v.id === id) checked = !v.checked;
-      }),
-    );
+  async function toggleField(id) {
+    await ApiClient.updateField(id, (_status: number, data: any) => {
+      console.log(data);
+    }).catch((err: any) => {
+      console.error(err);
+      status = GameStatus.ERROR;
+    });
+  }
 
-    let fieldUpdate: FieldUpdate = {
-      id: id,
-      checked,
-    };
-    websocket.send(JSON.stringify({ fieldUpdate }));
+  async function updateUsername() {
+    await ApiClient.updateUsername(id, newUsername, (_status: number, data: any) => {
+      console.log(data);
+      newUsername = undefined;
+    }).catch((err: any) => {
+      console.error(err);
+      status = GameStatus.ERROR;
+    });
   }
 </script>
 
 {#if status === GameStatus.OPEN}
+  <div class="flex flex-row justify-end items-center mb-2">
+    {#if newUsername === undefined}
+      <Button
+        caption="Edit Username"
+        size="sm"
+        on:click="{() => {
+          newUsername = '';
+        }}"
+      />
+    {:else}
+      <input
+        type="text"
+        bind:value="{newUsername}"
+        maxlength="22"
+        class="mr-2 px-2 py-1 text-sm bg-white border-gray border-2 focus:border-sky focus:outline-none rounded-lg"
+      />
+      <Button caption="Save" size="sm" on:click="{updateUsername}" />
+    {/if}
+  </div>
   <div class="grid gap-2 grid-cols-5 grid-rows-5">
     {#each fields as row, i}
       {#each row as { id, text, checked, bingo } (id)}

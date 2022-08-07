@@ -1,7 +1,7 @@
 use axum::{
     async_trait,
     extract::{Extension, FromRequest, RequestParts},
-    routing::{get, post},
+    routing::{get, patch, post},
     Router,
 };
 use axum_extra::extract::cookie::CookieJar;
@@ -59,7 +59,12 @@ async fn main() {
             USER_AGENT,
         ])
         .allow_credentials(true)
-        .allow_methods(vec![Method::GET, Method::POST, Method::DELETE])
+        .allow_methods(vec![
+            Method::GET,
+            Method::POST,
+            Method::DELETE,
+            Method::PATCH,
+        ])
         .allow_origin(Origin::list(vec![env::var("CORS_ALLOWED_ORIGIN")
             .expect("CORS_ALLOWED_ORIGIN not set")
             .parse()
@@ -83,7 +88,17 @@ async fn main() {
         .route("/auth", get(handler::auth::setup))
         .route("/templates", get(handler::template::list))
         .route("/templates", post(handler::template::create))
-        .route("/game", get(handler::game::ws))
+        .route("/game/:id", get(handler::game::ws))
+        .route("/game/start/:id", get(handler::game::handle_start_game))
+        .route(
+            "/game/join/:access_code",
+            get(handler::game::handle_join_game),
+        )
+        .route(
+            "/game/:id/username",
+            patch(handler::game::handle_update_username),
+        )
+        .route("/field/:id", patch(handler::game::handle_update_field))
         .layer(middleware_stack)
         .layer(Extension(pool));
 
