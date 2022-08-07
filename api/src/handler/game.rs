@@ -38,15 +38,15 @@ pub struct PlayerOut {
 #[serde(rename_all(serialize = "camelCase"))]
 pub enum MessageOut {
     #[serde(rename_all(serialize = "camelCase"))]
-    GameUpdate {
+    Game {
         id: Uuid,
         open: bool,
         access_code: String,
     },
     #[serde(rename_all(serialize = "camelCase"))]
-    FieldsUpdate(Vec<Vec<FieldOut>>),
+    Fields(Vec<Vec<FieldOut>>),
     #[serde(rename_all(serialize = "camelCase"))]
-    PlayersUpdate(Vec<PlayerOut>),
+    Players(Vec<PlayerOut>),
 }
 
 pub async fn ws(
@@ -97,7 +97,7 @@ async fn handle_socket(mut socket: WebSocket, pool: &PgPool, user_id: Uuid, game
             .await
             .expect("get_players failes");
         messages.push(
-            serde_json::to_string(&MessageOut::PlayersUpdate(players))
+            serde_json::to_string(&MessageOut::Players(players))
                 .expect("Fails to serialize MessageOut."),
         );
 
@@ -107,7 +107,7 @@ async fn handle_socket(mut socket: WebSocket, pool: &PgPool, user_id: Uuid, game
             .await
             .expect("get_players failes");
         messages.push(
-            serde_json::to_string(&MessageOut::FieldsUpdate(fields))
+            serde_json::to_string(&MessageOut::Fields(fields))
                 .expect("Fails to serialize MessageOut."),
         );
 
@@ -122,7 +122,7 @@ async fn handle_socket(mut socket: WebSocket, pool: &PgPool, user_id: Uuid, game
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all(serialize = "camelCase"))]
-pub struct GameUpdateOut {
+pub struct GameOut {
     pub id: Uuid,
     pub open: bool,
     pub access_code: String,
@@ -135,7 +135,7 @@ pub async fn handle_start_game(
     identity: Identity,
     Path(game_template_id): Path<Uuid>,
     Extension(state): Extension<AppState>,
-) -> Result<Json<GameUpdateOut>> {
+) -> Result<Json<GameOut>> {
     let pool = state.pool;
     let user_id = identity.user_id;
 
@@ -197,9 +197,9 @@ pub async fn handle_start_game(
             .iter()
             .find(|v| v.is_me)
             .map(|v| v.username.clone())
-            .unwrap_or("unknown".to_string());
+            .unwrap_or_else(|| "unknown".to_string());
 
-        Ok(Json(GameUpdateOut {
+        Ok(Json(GameOut {
             id: game.id,
             open: true,
             access_code: game.access_code,
@@ -214,18 +214,14 @@ pub async fn handle_join_game(
     identity: Identity,
     Path(access_code): Path<String>,
     Extension(state): Extension<AppState>,
-) -> Result<Json<GameUpdateOut>> {
+) -> Result<Json<GameOut>> {
     let pool = state.pool;
     let user_id = identity.user_id;
 
     join_game(user_id, access_code, &pool).await
 }
 
-pub async fn join_game(
-    user_id: Uuid,
-    access_code: String,
-    pool: &PgPool,
-) -> Result<Json<GameUpdateOut>> {
+pub async fn join_game(user_id: Uuid, access_code: String, pool: &PgPool) -> Result<Json<GameOut>> {
     let game = sqlx::query!(
         r#"
                 select 
@@ -253,9 +249,9 @@ pub async fn join_game(
         .iter()
         .find(|v| v.is_me)
         .map(|v| v.username.clone())
-        .unwrap_or("unknown".to_string());
+        .unwrap_or_else(|| "unknown".to_string());
 
-    Ok(Json(GameUpdateOut {
+    Ok(Json(GameOut {
         id: game.id,
         open: !game.closed,
         access_code: game.access_code,
@@ -429,14 +425,13 @@ async fn get_fields(
         position: 0,
         checked: v.checked,
         bingo: false,
-    })
-    .collect::<Vec<FieldOut>>();
+    });
 
     // TODO: figure our how to solve this with iter().chunks(5)
 
     let mut result: Vec<Vec<FieldOut>> = Vec::new();
     let mut v: Vec<FieldOut> = Vec::new();
-    for (i, field) in fields.into_iter().enumerate() {
+    for (i, field) in fields.enumerate() {
         if i % 5 == 0 {
             if i == 5 {
                 result = vec![v]
@@ -479,7 +474,7 @@ async fn get_players(game_id: Uuid, user_id: Uuid, pool: &PgPool) -> Result<Vec<
         user_id: v.user_id,
         username: v.username,
         bingos: 0, // TODO
-        hits: v.hits.unwrap_or(vec![]),
+        hits: v.hits.unwrap_or_default(),
         is_me: v.user_id == user_id,
     })
     .collect::<Vec<PlayerOut>>();

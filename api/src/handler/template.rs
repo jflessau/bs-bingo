@@ -69,7 +69,7 @@ pub async fn create(
 ) -> Result<String> {
     let pool = &state.pool;
 
-    if payload.title.len() < 1 || payload.title.len() > 128 {
+    if payload.title.is_empty() || payload.title.len() > 128 {
         return Err(Error::BadRequest(
             "Title must have at least one and at most 128 characters.".to_string(),
         ));
@@ -98,7 +98,7 @@ pub async fn create(
     // check if all fields are valid
 
     for field in &payload.fields {
-        if field.len() < 1 || field.len() > 128 {
+        if field.is_empty() || field.len() > 128 {
             return Err(Error::BadRequest(
                 "Field captions must have at least one and at most 128 characters.".to_string(),
             ));
