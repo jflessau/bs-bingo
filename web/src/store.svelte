@@ -59,26 +59,4 @@
     status: CreateTemplateStatus.IDLE,
     template: { title: '', fields: [] },
   });
-
-  // game
-
-  export interface Field {
-    id: string;
-    text: string;
-    position: number;
-    checked: boolean;
-    bingo: boolean;
-  }
-
-  export interface Player {
-    iduserId: string;
-    username: string;
-    bingos: number;
-    hits: Array<boolean>;
-  }
-
-  export interface FieldUpdate {
-    id: string;
-    checked: boolean;
-  }
 </script>

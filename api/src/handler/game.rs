@@ -31,6 +31,7 @@ pub struct PlayerOut {
     username: String,
     bingos: i32,
     hits: Vec<bool>,
+    is_me: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -92,7 +93,7 @@ async fn handle_socket(mut socket: WebSocket, pool: &PgPool, user_id: Uuid, game
 
         // get players
 
-        let players = get_players(game_id, pool)
+        let players = get_players(game_id, user_id, pool)
             .await
             .expect("get_players failes");
         messages.push(
@@ -127,6 +128,7 @@ pub struct GameUpdateOut {
     pub access_code: String,
     pub fields: Vec<Vec<FieldOut>>,
     pub players: Vec<PlayerOut>,
+    pub username: String,
 }
 
 pub async fn handle_start_game(
@@ -137,47 +139,75 @@ pub async fn handle_start_game(
     let pool = state.pool;
     let user_id = identity.user_id;
 
-    let _game_template = sqlx::query!(
-        r#"
-            select * from bingo.game_templates
-            where id = $1 and (created_by = $2 or approved = true)
-        "#,
-        game_template_id,
-        user_id
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    let game_access_code: String = thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(16)
-        .map(char::from)
-        .collect();
-
     let game = sqlx::query!(
         r#"
+            select
+                g.id,
+                g.access_code
+            from bingo.games g
+            join bingo.players p on p.game_id = g.id
+            where 
+                g.game_template_id = $1
+                and p.user_id = $2
+        "#,
+        game_template_id,
+        user_id,
+    )
+    .fetch_optional(&pool)
+    .await?;
+
+    if let Some(game) = game {
+        join_game(user_id, game.access_code, &pool).await
+    } else {
+        let _game_template = sqlx::query!(
+            r#"
+                select * from bingo.game_templates
+                where id = $1 and (created_by = $2 or approved = true)
+            "#,
+            game_template_id,
+            user_id
+        )
+        .fetch_one(&pool)
+        .await?;
+
+        let game_access_code: String = thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(16)
+            .map(char::from)
+            .collect();
+
+        let game = sqlx::query!(
+            r#"
             insert into bingo.games (game_template_id, access_code, created_by)
             values ($1, $2, $3)
             returning *
         "#,
-        game_template_id,
-        game_access_code,
-        user_id
-    )
-    .fetch_one(&pool)
-    .await?;
+            game_template_id,
+            game_access_code,
+            user_id
+        )
+        .fetch_one(&pool)
+        .await?;
 
-    let fields = get_fields(game.game_template_id, game.id, user_id, &pool).await?;
+        let fields = get_fields(game.game_template_id, game.id, user_id, &pool).await?;
 
-    let players = get_players(game.id, &pool).await?;
+        let players = get_players(game.id, user_id, &pool).await?;
 
-    Ok(Json(GameUpdateOut {
-        id: game.id,
-        open: true,
-        access_code: game.access_code,
-        fields,
-        players,
-    }))
+        let username = players
+            .iter()
+            .find(|v| v.is_me)
+            .map(|v| v.username.clone())
+            .unwrap_or("unknown".to_string());
+
+        Ok(Json(GameUpdateOut {
+            id: game.id,
+            open: true,
+            access_code: game.access_code,
+            fields,
+            players,
+            username,
+        }))
+    }
 }
 
 pub async fn handle_join_game(
@@ -188,28 +218,42 @@ pub async fn handle_join_game(
     let pool = state.pool;
     let user_id = identity.user_id;
 
+    join_game(user_id, access_code, &pool).await
+}
+
+pub async fn join_game(
+    user_id: Uuid,
+    access_code: String,
+    pool: &PgPool,
+) -> Result<Json<GameUpdateOut>> {
     let game = sqlx::query!(
         r#"
-            select 
-                gt.id as game_template_id, 
-                g.id as id,
-                g.closed as closed,
-                g.access_code as access_code
-            from 
-                bingo.games as g
-            inner join
-                bingo.game_templates as gt on g.game_template_id = gt.id
-            where 
-                g.access_code = $1
-        "#,
+                select 
+                    gt.id as game_template_id, 
+                    g.id as id,
+                    g.closed as closed,
+                    g.access_code as access_code
+                from 
+                    bingo.games as g
+                inner join
+                    bingo.game_templates as gt on g.game_template_id = gt.id
+                where 
+                    g.access_code = $1
+            "#,
         access_code
     )
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await?;
 
-    let fields = get_fields(game.game_template_id, game.id, user_id, &pool).await?;
+    let fields = get_fields(game.game_template_id, game.id, user_id, pool).await?;
 
-    let players = get_players(game.id, &pool).await?;
+    let players = get_players(game.id, user_id, pool).await?;
+
+    let username = players
+        .iter()
+        .find(|v| v.is_me)
+        .map(|v| v.username.clone())
+        .unwrap_or("unknown".to_string());
 
     Ok(Json(GameUpdateOut {
         id: game.id,
@@ -217,6 +261,7 @@ pub async fn handle_join_game(
         access_code: game.access_code,
         fields,
         players,
+        username,
     }))
 }
 
@@ -352,7 +397,7 @@ async fn get_fields(
             "#,
             user_id,
             game_id,
-            "unknown player",
+            "Anonymous player",
         )
         .execute(pool)
         .await?;
@@ -409,8 +454,8 @@ async fn get_fields(
     Ok(result)
 }
 
-async fn get_players(game_id: Uuid, pool: &PgPool) -> Result<Vec<PlayerOut>> {
-    let players = sqlx::query!(
+async fn get_players(game_id: Uuid, user_id: Uuid, pool: &PgPool) -> Result<Vec<PlayerOut>> {
+    let mut players = sqlx::query!(
         r#"
             select
                 p.user_id as user_id,
@@ -422,8 +467,8 @@ async fn get_players(game_id: Uuid, pool: &PgPool) -> Result<Vec<PlayerOut>> {
             join bingo.field_templates as ft on f.field_template_id = ft.id
             where 
                 p.game_id = $1 and f.game_id = $1
-            
             group by p.user_id, p.username
+            order by array_agg(f.checked) desc
         "#,
         game_id,
     )
@@ -435,8 +480,18 @@ async fn get_players(game_id: Uuid, pool: &PgPool) -> Result<Vec<PlayerOut>> {
         username: v.username,
         bingos: 0, // TODO
         hits: v.hits.unwrap_or(vec![]),
+        is_me: v.user_id == user_id,
     })
     .collect::<Vec<PlayerOut>>();
+
+    players.sort_by(|a, b| {
+        b.hits
+            .iter()
+            .filter(|v| **v)
+            .count()
+            .partial_cmp(&a.hits.iter().filter(|v| **v).count())
+            .unwrap()
+    });
 
     Ok(players)
 }

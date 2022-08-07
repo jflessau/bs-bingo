@@ -1,0 +1,121 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  web_check_formatting:
+    name: 'Check Formatting: Web'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Setup Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: 16.x
+      - name: Check formatting
+        run: |
+          cd web
+          npm i
+          npm run format:check
+
+  build_and_publish_admin_frontend:
+    name: 'Build and Publish: Web'
+    needs: web_check_formatting
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.PACKAGES }}
+      - name: Get short commit hash for image tag
+        id: shortened_hash
+        run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: ./web/
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/jflessau/bs-bingo-web:latest
+            ghcr.io/jflessau/bs-bingo-web:${{ steps.shortened_hash.outputs.sha_short }}
+
+  check_formatting_api:
+    name: 'Check Formatting: API'
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@master
+      - name: install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rustfmt
+          override: true
+      - name: cargo fmt
+        run: |
+          cd api && cargo fmt --all -- --check
+
+  linting_api:
+    name: 'Linting: API'
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@master
+      - name: install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: clippy
+          override: true
+      - name: cargo clippy
+        run: |
+          cd api && cargo clippy -- --D warnings
+
+  build_and_publish_api:
+    name: 'Build and Publish: API'
+    if: github.ref == 'refs/heads/main'
+    needs: [check_formatting_api, linting_api]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.PACKAGES }}
+      - name: Get short commit hash for image tag
+        id: shortened_hash
+        run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: ./api/
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/jflessau/bs-bingo-api:latest
+            ghcr.io/jflessau/bs-bingo-api:${{ steps.shortened_hash.outputs.sha_short }}
