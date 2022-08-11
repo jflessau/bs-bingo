@@ -90,6 +90,7 @@ async fn main() {
         .route("/templates", post(handler::template::create))
         .route("/game/:id", get(handler::game::ws))
         .route("/game/start/:id", get(handler::game::handle_start_game))
+        .route("/game/leave/:id", get(handler::game::handle_leave_game))
         .route(
             "/game/join/:access_code",
             get(handler::game::handle_join_game),

@@ -67,7 +67,7 @@ async fn handle_socket(mut socket: WebSocket, pool: &PgPool, user_id: Uuid, game
     let mut socket_healthy = true;
 
     while socket_healthy {
-        sleep(Duration::from_millis(100)).await;
+        sleep(Duration::from_millis(500)).await;
 
         // check if game exists
 
@@ -324,6 +324,69 @@ pub async fn handle_update_username(
     Ok(())
 }
 
+pub async fn handle_leave_game(
+    identity: Identity,
+    Path(game_template_id): Path<Uuid>,
+    Extension(state): Extension<AppState>,
+) -> Result<()> {
+    let pool = state.pool;
+    let user_id = identity.user_id;
+
+    let mut transaction = pool.begin().await?;
+
+    let game = sqlx::query!(
+        "select id from bingo.games where game_template_id = $1 and created_by = $2",
+        game_template_id,
+        identity.user_id
+    )
+    .fetch_one(&mut transaction)
+    .await?;
+
+    sqlx::query!(
+        r#"
+            delete from 
+                bingo.players 
+            where 
+                game_id = $1
+                and user_id = $2
+        "#,
+        game.id,
+        &user_id
+    )
+    .execute(&mut transaction)
+    .await?;
+
+    sqlx::query!(
+        r#"
+            delete from 
+                bingo.fields 
+            where 
+                game_id = $1
+                and user_id = $2
+        "#,
+        game.id,
+        &user_id
+    )
+    .execute(&mut transaction)
+    .await?;
+
+    sqlx::query!(
+        r#"
+            delete from 
+                bingo.games 
+            where 
+                id = $1
+        "#,
+        game.id,
+    )
+    .execute(&mut transaction)
+    .await?;
+
+    transaction.commit().await?;
+
+    Ok(())
+}
+
 async fn create_fields(
     game_template_id: Uuid,
     game_id: Uuid,
@@ -461,9 +524,14 @@ async fn get_players(game_id: Uuid, user_id: Uuid, pool: &PgPool) -> Result<Vec<
             join bingo.fields as f on f.user_id = p.user_id
             join bingo.field_templates as ft on f.field_template_id = ft.id
             where 
-                p.game_id = $1 and f.game_id = $1
-            group by p.user_id, p.username
-            order by array_agg(f.checked) desc
+                p.game_id = $1 
+                and f.game_id = $1
+            group by 
+                p.user_id, 
+                p.username
+            order by 
+                array_agg(f.checked) desc, 
+                "username" desc
         "#,
         game_id,
     )
@@ -473,20 +541,73 @@ async fn get_players(game_id: Uuid, user_id: Uuid, pool: &PgPool) -> Result<Vec<
     .map(|v| PlayerOut {
         user_id: v.user_id,
         username: v.username,
-        bingos: 0, // TODO
+        bingos: calc_bingos(v.hits.clone().unwrap_or_default()),
         hits: v.hits.unwrap_or_default(),
         is_me: v.user_id == user_id,
     })
     .collect::<Vec<PlayerOut>>();
 
     players.sort_by(|a, b| {
-        b.hits
-            .iter()
-            .filter(|v| **v)
-            .count()
-            .partial_cmp(&a.hits.iter().filter(|v| **v).count())
-            .unwrap()
+        let a_hits = a.hits.iter().filter(|v| **v).count();
+
+        let b_hits = b.hits.iter().filter(|v| **v).count();
+
+        if a.bingos == b.bingos {
+            b_hits.partial_cmp(&a_hits).unwrap()
+        } else {
+            b.bingos.partial_cmp(&a.bingos).unwrap()
+        }
     });
 
     Ok(players)
+}
+
+fn calc_bingos(hits: Vec<bool>) -> i32 {
+    if hits.len() != 25 {
+        return 0;
+    }
+
+    let mut bingos = 0;
+
+    // check rows
+
+    for x in 0..5 {
+        let x = x * 5;
+        if (0..5).all(|y| hits[x + y]) {
+            bingos += 1;
+        }
+    }
+
+    // check columns
+
+    for x in 0..5 {
+        if (0..5).all(|y| {
+            let y = y * 5;
+            hits[x + y]
+        }) {
+            bingos += 1;
+        }
+    }
+
+    // check top left to bottom right
+
+    let mut n: i32 = -6;
+    if (0..5).all(|_| {
+        n = n + 6;
+        hits[n as usize]
+    }) {
+        bingos += 1;
+    }
+
+    // check top right to bottom left
+
+    let mut n: i32 = 0;
+    if (0..5).all(|_| {
+        n = n + 4;
+        hits[n as usize]
+    }) {
+        bingos += 1;
+    }
+
+    bingos
 }

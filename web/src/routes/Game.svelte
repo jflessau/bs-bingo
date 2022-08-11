@@ -39,6 +39,11 @@
   export let gameTemplateId: string | undefined = undefined;
   export let accessCode: string | undefined = undefined;
 
+  let url: string | boolean = import.meta.env.VITE_BASE_URL_LOCAL;
+  if (import.meta.env.MODE !== 'development') {
+    url = import.meta.env.VITE_BASE_URL_REMOTE;
+  }
+
   let id: string | undefined = undefined;
   let status: GameStatus = GameStatus.INIT;
   let username: string | undefined = undefined;
@@ -91,11 +96,11 @@
     websocket.addEventListener('message', event => {
       let data: any | undefined = event.data ? JSON.parse(event.data) : undefined;
 
-      if (data.fieldsUpdate) {
-        let fieldsUpdate: Array<Array<Field>> = data.fieldsUpdate;
+      if (data.fields) {
+        let fieldsUpdate: Array<Array<Field>> = data.fields;
         fields = fieldsUpdate;
-      } else if (data.playersUpdate) {
-        let playersUpdate: Array<Player> = data.playersUpdate;
+      } else if (data.players) {
+        let playersUpdate: Array<Player> = data.players;
         players = playersUpdate;
       }
     });
@@ -103,6 +108,7 @@
 
   function assertWebsocket() {
     if (websocket) {
+      console.log('assert websocket', websocket.readyState);
       if (websocket.readyState > 1) {
         startWebSocket();
       }
@@ -179,16 +185,8 @@
     {/each}
   </div>
 
-  <div class="rounded-lg p-4 mt-16 mb-4">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="font-bold text-lg">Spieler</h2>
-      {#if code}
-        <div class="flex flex-col items-end">
-          <p class="text-sm">Party-Code</p>
-          <p class="text-sm font-bold">{code}</p>
-        </div>
-      {/if}
-    </div>
+  <div class="rounded-lg mt-16 mb-4">
+    <h2 class="font-bold text-lg mb-4">Spieler</h2>
     {#each players as { username, hits, bingos, isMe }, i}
       <div
         class="w-full mt-2 flex flex-row justify-start items-center rounded border-2 p-2 {isMe
@@ -208,5 +206,12 @@
         </div>
       </div>
     {/each}
+
+    {#if code}
+      <h2 class="font-bold text-lg mb-4 mt-16">Invite Link</h2>
+      <p class="text-sm font-bold">
+        <a class="text-sky underline break-all" href="{`${url}/games/join/${code}`}">{`${url}/games/join/${code}`}</a>
+      </p>
+    {/if}
   </div>
 {/if}

@@ -1,7 +1,6 @@
 <script lang="ts">
   import './style/main.scss';
   import Home from './routes/Home.svelte';
-  import Templates from './routes/Templates.svelte';
   import Game from './routes/Game.svelte';
   import CreateTemplate from './routes/CreateTemplate.svelte';
   import Nav from './components/Nav.svelte';
@@ -47,7 +46,6 @@
       <Route path="/" component="{Home}" />
       <Route path="/games/start/:gameTemplateId" component="{Game}" />
       <Route path="/games/join/:accessCode" component="{Game}" />
-      <Route path="/templates" component="{Templates}" />
       <Route path="/create-template" component="{CreateTemplate}" />
     </div>
   {:else if authData === AuthStatus.IDLE || authData === AuthStatus.LOADING}

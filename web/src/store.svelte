@@ -27,6 +27,7 @@
     title: string;
     fieldAmount: number;
     owned: boolean;
+    resumable: boolean;
   }
 
   export interface Templates {

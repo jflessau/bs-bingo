@@ -83,6 +83,10 @@
       return this.client.get(`/game/join/${accessCoce}`).then(response => callback(response.status, response.data));
     }
 
+    leaveGame(id: string, callback: any) {
+      return this.client.get(`/game/leave/${id}`).then(response => callback(response.status));
+    }
+
     updateUsername(id: string, username: string, callback: any) {
       return this.client
         .patch(`/game/${id}/username`, { username })

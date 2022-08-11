@@ -14,6 +14,7 @@ pub struct TemplateOut {
     title: String,
     field_amount: i64,
     owned: bool,
+    resumable: bool,
 }
 
 pub async fn list(
@@ -24,19 +25,36 @@ pub async fn list(
 
     let templates = sqlx::query!(
         r#"
-            select * from (
-                select
-                    distinct on(gt.id) gt.id,
-                    gt.title,
-                    count(ft.id) as field_amount,
-                    gt.created_by = $1 as owned
-                from
-                    bingo.game_templates as gt
-                    join bingo.field_templates as ft on ft.game_template_id = gt.id
-                group by
-                    gt.id
-            ) as sq
-            order by sq.owned desc
+            select
+                *
+            from
+                (
+                    select
+                        distinct on (gt.id) gt.id,
+                        gt.title,
+                        count(ft.id) field_amount,
+                        gt.created_by = $1 owned,
+                        g.id is not null resumable
+                    from
+                        bingo.game_templates gt
+                        join bingo.field_templates ft on ft.game_template_id = gt.id
+                        left outer join bingo.games g on g.game_template_id = gt.id
+                        and g.created_by = $1
+                    where
+                        (
+                            gt.created_by = $1
+                            or(
+                                public = true
+                                and approved = true
+                            )
+                        )
+                    group by
+                        gt.id,
+                        g.id
+                ) as sq
+            order by
+                sq.owned desc,
+                title desc
         "#,
         identity.user_id
     )
@@ -48,10 +66,9 @@ pub async fn list(
         title: v.title,
         field_amount: v.field_amount.unwrap_or(0),
         owned: v.owned.unwrap_or(false),
+        resumable: v.resumable.unwrap_or(false),
     })
     .collect::<Vec<TemplateOut>>();
-
-    sleep(Duration::from_millis(1000)).await;
 
     Ok(Json(templates))
 }

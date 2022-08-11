@@ -21,7 +21,7 @@
   let fields: Array<Field> = [];
 
   onMount(async () => {
-    for (let n = 0; n < 9; n++) {
+    for (let n = 0; n < 25; n++) {
       fields.push({
         id: n + '',
         caption: '',
@@ -65,7 +65,7 @@
   />
 
   <h3 class="mt-8 mb-2">Wörter</h3>
-  <p class="mb-2">Es braucht mindestens 9 Wörter für ein 3x3 und mindestens 25 für ein 5x5 Spielfeld.</p>
+  <p class="mb-2">Es braucht mindestens 25 für ein 5x5 Spielfeld.</p>
 
   <div class="grid grid-cols-3 gap-4">
     {#each fields as { id, caption } (id)}
@@ -80,10 +80,11 @@
 
   <Button on:click="{addInput}" caption="Feld Hinzufügen" variant="secondary" classes="mt-4" />
 
-  {#if fields.filter(v => v.caption.trim().length > 0).length >= 9 && title.trim().length > 0}
-    <Button caption="Speichern" classes="mt-16" on:click="{createTemplate}" />
+  {#if fields.filter(v => v.caption.trim().length > 0).length >= 25 && title.trim().length > 0}
+    <Button caption="Speichern" classes="mt-16 mb-8" on:click="{createTemplate}" />
   {:else}
-    <Button caption="Speichern" disabled classes="mt-16" />
+    <p class="text-xs mt-16">You need to fill at least 25 fields.</p>
+    <Button caption="Speichern" disabled classes="mt-4 mb-8" />
   {/if}
 {:else if status === Status.SUCCESS}
   <p class="text-center mb-8">Vorlage gespeichert!</p>
