@@ -76,7 +76,6 @@ pub async fn send_game_update_messages(
 
     while socket_healthy {
         let notification = listener.recv().await?;
-        tracing::info!("pg notification: {:?}", notification);
 
         let mut messages = Vec::new();
 
@@ -353,26 +352,30 @@ async fn create_fields(
     user_id: Uuid,
     pool: &PgPool,
 ) -> Result<()> {
-    let mut field_templates = sqlx::query!(
+    let mut field_template_ids = sqlx::query!(
         r#"
-            select * from bingo.field_templates
+            select id from bingo.field_templates
             where game_template_id = $1
         "#,
         game_template_id
     )
     .fetch_all(pool)
-    .await?;
+    .await?
+    .iter()
+    .map(|v| v.id)
+    .collect::<Vec<Uuid>>();
 
-    field_templates.shuffle(&mut thread_rng());
+    field_template_ids.shuffle(&mut thread_rng());
+    let field_template_ids = &field_template_ids[0..25].to_vec();
 
-    for (i, field_template) in field_templates.iter().enumerate() {
+    for (i, field_template_id) in field_template_ids.iter().enumerate() {
         sqlx::query!(
             r#"
                 insert into bingo.fields (game_id, field_template_id, position, user_id)
                 values ($1, $2, $3, $4)
             "#,
             game_id,
-            field_template.id,
+            field_template_id,
             i as i16,
             user_id,
         )
@@ -524,6 +527,7 @@ async fn get_players(game_id: Uuid, user_id: Uuid, pool: &PgPool) -> Result<Vec<
 
 fn calc_bingos(hits: Vec<bool>) -> i32 {
     if hits.len() != 25 {
+        tracing::warn!("player has more or less than 25 fields: {}", hits.len());
         return 0;
     }
 

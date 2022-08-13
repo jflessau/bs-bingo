@@ -142,14 +142,14 @@
 </script>
 
 {#if status === GameStatus.OPEN}
-  <div class="mt-4 flex flex-row items-center mb-16 justify-between">
-    <div class="nav w-fit p-4 bg-solitude rounded-lg">
-      <Link to="/" class="font-bold px-2 py-4">{'< Home'}</Link>
+  <div class="mt-4 mb-16 flex flex-col items-start md:flex-row md:items-center justify-between">
+    <div class="nav w-fit p-4 bg-solitude rounded-lg mb-8 md:mb-0">
+      <Link to="/" class="font-bold px-2 py-4">{'Home'}</Link>
     </div>
 
     {#if newUsername === undefined}
       {#if username}
-        <div class="flex flex-row items-center">
+        <div class="w-full flex flex-row items-center justify-between sm:justify-end">
           <p class="mr-4"><span class="font-bold">{username}</span></p>
           <Button
             caption="Edit Username"

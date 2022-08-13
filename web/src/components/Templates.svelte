@@ -56,8 +56,8 @@
 {:else}
   {#each templatesData.templates as { title, fieldAmount, owned, id, resumable } (id)}
     <div class="mt-4 flex flex-row justify-between items-center rounded-lg bg-solitude p-4">
-      <div class="flex flex-col justify-start items-start">
-        <p class="font-bold">{title}</p>
+      <div class="flex flex-col justify-start items-start mr-4">
+        <p class="font-bold break-all">{title}</p>
         <p class="mr-4 text-sm">
           {#if owned}
             <span>private</span>,
@@ -68,7 +68,7 @@
         </p>
       </div>
       <div class="flex flex-row justify-center items-center">
-        {#if templateToDelete}
+        {#if templateToDelete === id}
           <Button
             caption="Don't Delete Template"
             size="sm"

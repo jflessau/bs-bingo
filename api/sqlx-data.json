@@ -338,6 +338,26 @@
     },
     "query": "\n            select\n                g.id,\n                g.access_code\n            from bingo.games g\n            join bingo.players p on p.game_id = g.id\n            where \n                g.game_template_id = $1\n                and p.user_id = $2\n        "
   },
+  "8799c8cd1e810c83289fd453a6e8e1c63552d9531c7c5780a4084a9be03f40a8": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      }
+    },
+    "query": "\n            select id from bingo.field_templates\n            where game_template_id = $1\n        "
+  },
   "8e8332317d5707b15a6b6b5571db7b1f92ad9fe5fefac207aef0b50696ab0e87": {
     "describe": {
       "columns": [
@@ -375,38 +395,6 @@
       }
     },
     "query": "\n            select \n                gt.id as game_template_id, \n                g.id as id,\n                g.closed as closed,\n                g.access_code as access_code\n            from \n                bingo.games as g\n            inner join\n                bingo.game_templates as gt on g.game_template_id = gt.id\n            where \n                g.access_code = $1\n        "
-  },
-  "97a4cd14e4ccae6c08291778f8f46675f55c5e61848e08222a6836f627d5d5ab": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "game_template_id",
-          "ordinal": 1,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "caption",
-          "ordinal": 2,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Uuid"
-        ]
-      }
-    },
-    "query": "\n            select * from bingo.field_templates\n            where game_template_id = $1\n        "
   },
   "9f183e234c307c0a473bcbb8a191e06492bc059c0aa4289c8a267f2c29823c39": {
     "describe": {

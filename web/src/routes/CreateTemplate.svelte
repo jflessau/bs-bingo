@@ -55,7 +55,7 @@
 
 {#if status === Status.IDLE}
   <div class="nav mb-16 mt-4 w-fit p-4 bg-solitude rounded-lg">
-    <Link to="/" class="font-bold px-2 py-4">{'< Home'}</Link>
+    <Link to="/" class="font-bold px-2 py-4">{'Home'}</Link>
   </div>
 
   <h2 class="text-2xl mb-4">Create Template</h2>
@@ -71,7 +71,7 @@
   <h3 class="mt-8 mb-2">Words</h3>
   <p class="mb-2">You need at least 25 words.</p>
 
-  <div class="grid grid-cols-3 gap-4">
+  <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
     {#each fields as { id, caption } (id)}
       <input
         type="text"
