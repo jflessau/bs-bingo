@@ -1,4 +1,8 @@
-use crate::{error::Result, AppState, Identity};
+use crate::{
+    body::{FieldOut, GameOut, MessageOut, PgGameUpdateNotification, PlayerOut, UsernameIn},
+    error::Result,
+    AppState, Identity,
+};
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -7,47 +11,10 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use tokio::time::{sleep, Duration};
-
 use rand::{distributions::Alphanumeric, seq::SliceRandom, thread_rng, Rng};
-use serde::{Deserialize, Serialize};
+use sqlx::postgres::PgListener;
 use sqlx::postgres::PgPool;
 use uuid::Uuid;
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FieldOut {
-    id: Uuid,
-    text: String,
-    position: u32,
-    checked: bool,
-    bingo: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PlayerOut {
-    user_id: Uuid,
-    username: String,
-    bingos: i32,
-    hits: Vec<bool>,
-    is_me: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all(serialize = "camelCase"))]
-pub enum MessageOut {
-    #[serde(rename_all(serialize = "camelCase"))]
-    Game {
-        id: Uuid,
-        open: bool,
-        access_code: String,
-    },
-    #[serde(rename_all(serialize = "camelCase"))]
-    Fields(Vec<Vec<FieldOut>>),
-    #[serde(rename_all(serialize = "camelCase"))]
-    Players(Vec<PlayerOut>),
-}
 
 pub async fn ws(
     ws: WebSocketUpgrade,
@@ -56,79 +23,88 @@ pub async fn ws(
     Path(game_id): Path<Uuid>,
     Extension(state): Extension<AppState>,
 ) -> impl IntoResponse {
-    let pool = state.pool;
-
     ws.on_upgrade(move |socket| async move {
-        handle_socket(socket, &pool, identity.user_id, game_id).await
+        handle_socket(socket, &state, identity.user_id, game_id).await
     })
 }
 
-async fn handle_socket(mut socket: WebSocket, pool: &PgPool, user_id: Uuid, game_id: Uuid) {
-    let mut socket_healthy = true;
-
-    while socket_healthy {
-        sleep(Duration::from_millis(500)).await;
-
-        // check if game exists
-
-        let game = sqlx::query!(
-            r#"
-                select 
-                    g.game_template_id
-                from 
-                    bingo.games g
-                inner join
-                    bingo.players p on p.game_id = g.id
-                where 
-                    p.user_id = $1 and g.id = $2 and closed = false
-            "#,
-            user_id,
-            game_id,
-        )
-        .fetch_one(pool)
-        .await
-        .expect("checking game existence failes");
-
-        let mut messages = Vec::new();
-
-        // get players
-
-        let players = get_players(game_id, user_id, pool)
-            .await
-            .expect("get_players failes");
-        messages.push(
-            serde_json::to_string(&MessageOut::Players(players))
-                .expect("Fails to serialize MessageOut."),
-        );
-
-        // get fields
-
-        let fields = get_fields(game.game_template_id, game_id, user_id, pool)
-            .await
-            .expect("get_players failes");
-        messages.push(
-            serde_json::to_string(&MessageOut::Fields(fields))
-                .expect("Fails to serialize MessageOut."),
-        );
-
-        for message in messages {
-            if let Err(err) = socket.send(Message::Text(message)).await {
-                tracing::warn!("Failed to send message: {:?}", err);
-                socket_healthy = false;
-            }
-        }
+async fn handle_socket(socket: WebSocket, state: &AppState, user_id: Uuid, game_id: Uuid) {
+    if let Err(err) = send_game_update_messages(socket, state, user_id, game_id).await {
+        // if let Err(err) = socket.close().await {
+        //     tracing::error!("closing socket failes: {:?}", err);
+        // }
+        tracing::error!("sending game update messgages failes: {:?}", err);
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all(serialize = "camelCase"))]
-pub struct GameOut {
-    pub id: Uuid,
-    pub open: bool,
-    pub access_code: String,
-    pub fields: Vec<Vec<FieldOut>>,
-    pub players: Vec<PlayerOut>,
-    pub username: String,
+pub async fn send_game_update_messages(
+    mut socket: WebSocket,
+    state: &AppState,
+    user_id: Uuid,
+    game_id: Uuid,
+) -> Result<Vec<String>> {
+    let pool = &state.pool;
+    let mut socket_healthy = true;
+
+    // check if game exists
+
+    let game = sqlx::query!(
+        r#"
+            select 
+                g.id,
+                g.game_template_id
+            from 
+                bingo.games g
+            inner join
+                bingo.players p on p.game_id = g.id
+            where 
+                p.user_id = $1 and g.id = $2 and closed = false
+        "#,
+        user_id,
+        game_id,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    let mut listener = PgListener::connect(&state.database_url).await?;
+
+    listener
+        .listen_all(vec!["fields_update", "players_update"])
+        .await?;
+
+    // while socket is healthy: listen for postgres notifications and send respective updates to client
+
+    while socket_healthy {
+        let notification = listener.recv().await?;
+        tracing::info!("pg notification: {:?}", notification);
+
+        let mut messages = Vec::new();
+
+        let game_update: PgGameUpdateNotification = serde_json::from_str(notification.payload())?;
+
+        if game_update.game_id == game.id {
+            if notification.channel() == "fields_update" {
+                let fields = get_fields(game.game_template_id, game_id, user_id, pool).await?;
+                messages.push(serde_json::to_string(&MessageOut::Fields(fields))?);
+
+                let players = get_players(game_id, user_id, pool).await?;
+                messages.push(serde_json::to_string(&MessageOut::Players(players))?);
+            } else if notification.channel() == "players_update" {
+                let players = get_players(game_id, user_id, pool).await?;
+
+                messages.push(serde_json::to_string(&MessageOut::Players(players))?);
+            }
+
+            for message in messages {
+                if let Err(err) = socket.send(Message::Text(message)).await {
+                    tracing::warn!("Failed to send message: {:?}", err);
+                    socket_healthy = false;
+                }
+            }
+        }
+    }
+
+    Ok(vec![])
 }
 
 pub async fn handle_start_game(
@@ -221,44 +197,57 @@ pub async fn handle_join_game(
     join_game(user_id, access_code, &pool).await
 }
 
-pub async fn join_game(user_id: Uuid, access_code: String, pool: &PgPool) -> Result<Json<GameOut>> {
-    let game = sqlx::query!(
-        r#"
-                select 
-                    gt.id as game_template_id, 
-                    g.id as id,
-                    g.closed as closed,
-                    g.access_code as access_code
-                from 
-                    bingo.games as g
-                inner join
-                    bingo.game_templates as gt on g.game_template_id = gt.id
-                where 
-                    g.access_code = $1
-            "#,
-        access_code
+pub async fn handle_leave_game(
+    identity: Identity,
+    Path(game_template_id): Path<Uuid>,
+    Extension(state): Extension<AppState>,
+) -> Result<()> {
+    let pool = state.pool;
+    let user_id = identity.user_id;
+
+    let mut transaction = pool.begin().await?;
+
+    let game_ids = sqlx::query!(
+        "select id from bingo.games where game_template_id = $1",
+        game_template_id
     )
-    .fetch_one(pool)
+    .fetch_all(&mut transaction)
+    .await?
+    .into_iter()
+    .map(|v| v.id)
+    .collect::<Vec<Uuid>>();
+
+    sqlx::query!(
+        r#"
+            delete from 
+                bingo.players 
+            where 
+                game_id = any($1)
+                and user_id = $2
+        "#,
+        &game_ids,
+        &user_id
+    )
+    .execute(&mut transaction)
     .await?;
 
-    let fields = get_fields(game.game_template_id, game.id, user_id, pool).await?;
+    sqlx::query!(
+        r#"
+            delete from 
+                bingo.fields 
+            where 
+                game_id = any($1)
+                and user_id = $2
+        "#,
+        &game_ids,
+        &user_id
+    )
+    .execute(&mut transaction)
+    .await?;
 
-    let players = get_players(game.id, user_id, pool).await?;
+    transaction.commit().await?;
 
-    let username = players
-        .iter()
-        .find(|v| v.is_me)
-        .map(|v| v.username.clone())
-        .unwrap_or_else(|| "unknown".to_string());
-
-    Ok(Json(GameOut {
-        id: game.id,
-        open: !game.closed,
-        access_code: game.access_code,
-        fields,
-        players,
-        username,
-    }))
+    Ok(())
 }
 
 pub async fn handle_update_field(
@@ -297,12 +286,6 @@ pub async fn handle_update_field(
     Ok(())
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all(serialize = "camelCase"))]
-pub struct UsernameIn {
-    username: String,
-}
-
 pub async fn handle_update_username(
     identity: Identity,
     Json(username): Json<UsernameIn>,
@@ -324,67 +307,44 @@ pub async fn handle_update_username(
     Ok(())
 }
 
-pub async fn handle_leave_game(
-    identity: Identity,
-    Path(game_template_id): Path<Uuid>,
-    Extension(state): Extension<AppState>,
-) -> Result<()> {
-    let pool = state.pool;
-    let user_id = identity.user_id;
-
-    let mut transaction = pool.begin().await?;
-
+pub async fn join_game(user_id: Uuid, access_code: String, pool: &PgPool) -> Result<Json<GameOut>> {
     let game = sqlx::query!(
-        "select id from bingo.games where game_template_id = $1 and created_by = $2",
-        game_template_id,
-        identity.user_id
-    )
-    .fetch_one(&mut transaction)
-    .await?;
-
-    sqlx::query!(
         r#"
-            delete from 
-                bingo.players 
+            select 
+                gt.id as game_template_id, 
+                g.id as id,
+                g.closed as closed,
+                g.access_code as access_code
+            from 
+                bingo.games as g
+            inner join
+                bingo.game_templates as gt on g.game_template_id = gt.id
             where 
-                game_id = $1
-                and user_id = $2
+                g.access_code = $1
         "#,
-        game.id,
-        &user_id
+        access_code
     )
-    .execute(&mut transaction)
+    .fetch_one(pool)
     .await?;
 
-    sqlx::query!(
-        r#"
-            delete from 
-                bingo.fields 
-            where 
-                game_id = $1
-                and user_id = $2
-        "#,
-        game.id,
-        &user_id
-    )
-    .execute(&mut transaction)
-    .await?;
+    let fields = get_fields(game.game_template_id, game.id, user_id, pool).await?;
 
-    sqlx::query!(
-        r#"
-            delete from 
-                bingo.games 
-            where 
-                id = $1
-        "#,
-        game.id,
-    )
-    .execute(&mut transaction)
-    .await?;
+    let players = get_players(game.id, user_id, pool).await?;
 
-    transaction.commit().await?;
+    let username = players
+        .iter()
+        .find(|v| v.is_me)
+        .map(|v| v.username.clone())
+        .unwrap_or_else(|| "unknown".to_string());
 
-    Ok(())
+    Ok(Json(GameOut {
+        id: game.id,
+        open: !game.closed,
+        access_code: game.access_code,
+        fields,
+        players,
+        username,
+    }))
 }
 
 async fn create_fields(
@@ -593,7 +553,7 @@ fn calc_bingos(hits: Vec<bool>) -> i32 {
 
     let mut n: i32 = -6;
     if (0..5).all(|_| {
-        n = n + 6;
+        n += 6;
         hits[n as usize]
     }) {
         bingos += 1;
@@ -603,7 +563,7 @@ fn calc_bingos(hits: Vec<bool>) -> i32 {
 
     let mut n: i32 = 0;
     if (0..5).all(|_| {
-        n = n + 4;
+        n += 4;
         hits[n as usize]
     }) {
         bingos += 1;

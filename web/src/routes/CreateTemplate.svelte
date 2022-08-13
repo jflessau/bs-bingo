@@ -2,6 +2,7 @@
   import { ApiClient } from './../api.svelte';
   import { onMount } from 'svelte';
   import { Circle } from 'svelte-loading-spinners';
+  import { Link } from 'svelte-routing';
   import Button from './../components/Button.svelte';
 
   enum Status {
@@ -53,10 +54,13 @@
 </script>
 
 {#if status === Status.IDLE}
-  <h2 class="text-2xl mb-4">Vorlage erstellen</h2>
+  <div class="nav mb-16 mt-4 w-fit p-4 bg-solitude rounded-lg">
+    <Link to="/" class="font-bold px-2 py-4">{'< Home'}</Link>
+  </div>
 
-  <h3 class="mt-8 mb-2">Titel</h3>
-  <p class="mb-2">Gib deinem Spiel einen Titel.</p>
+  <h2 class="text-2xl mb-4">Create Template</h2>
+
+  <h3 class="mt-8 mb-2">Title</h3>
   <input
     type="text"
     bind:value="{title}"
@@ -64,8 +68,8 @@
     class="p-2 bg-white border-gray border-2 focus:border-sky focus:outline-none rounded-lg"
   />
 
-  <h3 class="mt-8 mb-2">Wörter</h3>
-  <p class="mb-2">Es braucht mindestens 25 für ein 5x5 Spielfeld.</p>
+  <h3 class="mt-8 mb-2">Words</h3>
+  <p class="mb-2">You need at least 25 words.</p>
 
   <div class="grid grid-cols-3 gap-4">
     {#each fields as { id, caption } (id)}
@@ -78,20 +82,20 @@
     {/each}
   </div>
 
-  <Button on:click="{addInput}" caption="Feld Hinzufügen" variant="secondary" classes="mt-4" />
+  <Button on:click="{addInput}" caption="Add Word" variant="secondary" classes="mt-4" />
 
   {#if fields.filter(v => v.caption.trim().length > 0).length >= 25 && title.trim().length > 0}
-    <Button caption="Speichern" classes="mt-16 mb-8" on:click="{createTemplate}" />
+    <Button caption="Save" classes="mt-16 mb-8" on:click="{createTemplate}" />
   {:else}
     <p class="text-xs mt-16">You need to fill at least 25 fields.</p>
-    <Button caption="Speichern" disabled classes="mt-4 mb-8" />
+    <Button caption="Save" disabled classes="mt-4 mb-8" />
   {/if}
 {:else if status === Status.SUCCESS}
-  <p class="text-center mb-8">Vorlage gespeichert!</p>
+  <p class="text-center mb-8 mt-16">Template saved!</p>
 
   <div class="flex justify-center items-center mb-16">
-    <Button link="/templates" caption="Zu meinen Vorlagen" />
+    <Button link="/" caption="Continue" />
   </div>
 {:else if status === Status.LOADING}
-  <div class="flex justify-center items-center mt-4"><Circle size="60" color="#009ffd" /></div>
-{:else}<p>An Error occurred.</p>{/if}
+  <div class="flex justify-center items-center mt-16"><Circle size="60" color="#009ffd" /></div>
+{:else}<p class="text-center">An error occurred.<br />Please refresh the page.</p>{/if}

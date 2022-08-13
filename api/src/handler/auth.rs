@@ -4,15 +4,9 @@ use crate::{
 };
 use axum::extract::Extension;
 use axum_extra::extract::cookie::{Cookie, CookieJar};
-use serde::{Deserialize, Serialize};
 use time::{Duration as CookieDuration, OffsetDateTime};
 use tokio::time::{sleep, Duration};
 use uuid::Uuid;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LoginPayload {
-    pub auth_code: Uuid,
-}
 
 pub async fn setup(
     Extension(state): Extension<AppState>,
@@ -46,7 +40,7 @@ pub async fn setup(
             // .http_only(true)
             .finish();
 
-        let expiration_time = OffsetDateTime::now_utc() + CookieDuration::hours(24 * 365);
+        let expiration_time = OffsetDateTime::now_utc() + CookieDuration::hours(24 * 365 * 5);
 
         cookie.set_expires(expiration_time);
 

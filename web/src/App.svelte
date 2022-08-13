@@ -3,7 +3,6 @@
   import Home from './routes/Home.svelte';
   import Game from './routes/Game.svelte';
   import CreateTemplate from './routes/CreateTemplate.svelte';
-  import Nav from './components/Nav.svelte';
   import { Router, Route } from 'svelte-routing';
   import { ApiClient } from './api.svelte';
   import { AuthStatus, authStore } from './store.svelte';
@@ -29,18 +28,7 @@
   });
 </script>
 
-<svelte:head>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@200;400;700&display=swap"
-    rel="stylesheet"
-  />
-  <title>BS Bingo</title>
-</svelte:head>
-
 <Router>
-  <Nav />
   {#if authData === AuthStatus.SUCCESS}
     <div class="container mx-auto px-2">
       <Route path="/" component="{Home}" />
@@ -49,9 +37,9 @@
       <Route path="/create-template" component="{CreateTemplate}" />
     </div>
   {:else if authData === AuthStatus.IDLE || authData === AuthStatus.LOADING}
-    <div class="flex justify-center items-center"><Circle size="60" color="#009ffd" /></div>
+    <div class="flex justify-center items-center mt-16"><Circle size="60" color="#009ffd" /></div>
   {:else}
-    <div class="flex justify-center items-center">
+    <div class="flex justify-center items-center mt-16">
       <p class="text-center">An error occurred.<br />Please refresh the page.</p>
     </div>
   {/if}

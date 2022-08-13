@@ -1,7 +1,7 @@
 use axum::{
     async_trait,
     extract::{Extension, FromRequest, RequestParts},
-    routing::{get, patch, post},
+    routing::{delete, get, patch, post},
     Router,
 };
 use axum_extra::extract::cookie::CookieJar;
@@ -21,6 +21,7 @@ use tower_http::{
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
 
+mod body;
 mod error;
 mod handler;
 
@@ -38,12 +39,12 @@ async fn main() {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL not set");
     let pool = PgPool::connect(&database_url)
         .await
-        .expect("database connection failes");
+        .expect("database connection fails");
 
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
-        .expect("running migrations failes");
+        .expect("running migrations fails");
 
     let port = dotenv::var("PORT")
         .unwrap_or_else(|_| "1313".into())
@@ -68,7 +69,7 @@ async fn main() {
         .allow_origin(Origin::list(vec![env::var("CORS_ALLOWED_ORIGIN")
             .expect("CORS_ALLOWED_ORIGIN not set")
             .parse()
-            .expect("parsing CORS_ALLOWED_ORIGIN failes")]));
+            .expect("parsing CORS_ALLOWED_ORIGIN fails")]));
 
     let middleware_stack = ServiceBuilder::new()
         .layer(
@@ -81,13 +82,23 @@ async fn main() {
                 ),
         )
         .layer(cors)
-        .layer(Extension(AppState { pool: pool.clone() }));
+        .layer(Extension(AppState {
+            pool: pool.clone(),
+            database_url,
+        }));
 
     let app = Router::new()
         .route("/health", get(health))
         .route("/auth", get(handler::auth::setup))
-        .route("/templates", get(handler::template::list))
-        .route("/templates", post(handler::template::create))
+        .route("/templates", get(handler::template::handle_list_templates))
+        .route(
+            "/templates",
+            post(handler::template::handle_create_template),
+        )
+        .route(
+            "/templates/:id",
+            delete(handler::template::handle_delete_template),
+        )
         .route("/game/:id", get(handler::game::ws))
         .route("/game/start/:id", get(handler::game::handle_start_game))
         .route("/game/leave/:id", get(handler::game::handle_leave_game))
@@ -109,7 +120,7 @@ async fn main() {
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
-        .expect("starting axum server failes");
+        .expect("starting axum server fails");
 }
 
 async fn health() -> error::Result<String> {
@@ -119,6 +130,7 @@ async fn health() -> error::Result<String> {
 #[derive(Clone)]
 pub struct AppState {
     pub pool: sqlx::Pool<sqlx::Postgres>,
+    pub database_url: String,
 }
 
 #[derive(Clone)]

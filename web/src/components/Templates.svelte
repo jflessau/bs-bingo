@@ -5,6 +5,8 @@
   import Button from './../components/Button.svelte';
   import { Circle } from 'svelte-loading-spinners';
 
+  let templateToDelete: undefined | string = undefined;
+
   $: templatesData = $templatesStore;
 
   onMount(async () => {
@@ -29,11 +31,20 @@
       console.error(err);
     });
   }
+
+  async function deleteTemplate(id) {
+    ApiClient.deleteTemplate(id, (_status: number) => {
+      listTemplates();
+      templateToDelete = undefined;
+    }).catch((err: any) => {
+      console.error(err);
+    });
+  }
 </script>
 
 <div class="flex flex-row justify-between items-center mb-8">
   <h2 class="text-2xl text-center">Templates</h2>
-  <Button caption="Vorlage Erstellen" size="sm" link="/create-template" />
+  <Button caption="Create Template" size="sm" link="/create-template" />
 </div>
 
 {#if templatesData.status === TemplatesStatus.LOADING}
@@ -49,21 +60,52 @@
         <p class="font-bold">{title}</p>
         <p class="mr-4 text-sm">
           {#if owned}
-            <span>privat</span>,
+            <span>private</span>,
           {:else}
-            <span>öffentlich</span>,
+            <span>public</span>,
           {/if}
-          {fieldAmount} Wörter
+          {fieldAmount} Words
         </p>
       </div>
-      {#if resumable}
-        <div class="flex flex-row justify-center items-center">
-          <Button caption="Leave" size="sm" variant="primary" on:click="{() => leaveGame(id)}" classes="mr-4" />
+      <div class="flex flex-row justify-center items-center">
+        {#if templateToDelete}
+          <Button
+            caption="Don't Delete Template"
+            size="sm"
+            variant="secondary"
+            on:click="{() => (templateToDelete = undefined)}"
+            classes="mr-4"
+          />
+          <Button
+            caption="Delete Template"
+            size="sm"
+            variant="primary"
+            on:click="{() => deleteTemplate(templateToDelete)}"
+          />
+        {:else if resumable}
+          {#if owned}
+            <Button
+              caption="Delete"
+              size="sm"
+              variant="text"
+              on:click="{() => (templateToDelete = id)}"
+              classes="mr-4"
+            />
+          {/if}
+          <Button caption="Leave" size="sm" variant="secondary" on:click="{() => leaveGame(id)}" classes="mr-4" />
           <Button caption="Continue" size="sm" variant="secondary" link="{`/games/start/${id}`}" />
-        </div>
-      {:else}
-        <Button caption="Start" size="sm" variant="secondary" link="{`/games/start/${id}`}" />
-      {/if}
+        {:else}{#if owned}
+            <Button
+              caption="Delete"
+              size="sm"
+              variant="text"
+              on:click="{() => (templateToDelete = id)}"
+              classes="mr-4"
+            />
+          {/if}
+          <Button caption="Start" size="sm" variant="secondary" link="{`/games/start/${id}`}" />
+        {/if}
+      </div>
     </div>
   {/each}
 {/if}

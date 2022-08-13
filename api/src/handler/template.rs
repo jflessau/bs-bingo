@@ -1,23 +1,17 @@
 use crate::{
+    body::{TemplateIn, TemplateOut},
     error::{Error, Result},
     AppState, Identity,
 };
-use axum::{extract::Extension, Json};
-use serde::{Deserialize, Serialize};
+use axum::{
+    extract::{Extension, Path},
+    Json,
+};
 use std::str;
 use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TemplateOut {
-    id: Uuid,
-    title: String,
-    field_amount: i64,
-    owned: bool,
-    resumable: bool,
-}
-
-pub async fn list(
+pub async fn handle_list_templates(
     Extension(state): Extension<AppState>,
     identity: Identity,
 ) -> Result<Json<Vec<TemplateOut>>> {
@@ -25,36 +19,39 @@ pub async fn list(
 
     let templates = sqlx::query!(
         r#"
-            select
-                *
-            from
-                (
-                    select
-                        distinct on (gt.id) gt.id,
-                        gt.title,
-                        count(ft.id) field_amount,
-                        gt.created_by = $1 owned,
-                        g.id is not null resumable
-                    from
-                        bingo.game_templates gt
-                        join bingo.field_templates ft on ft.game_template_id = gt.id
-                        left outer join bingo.games g on g.game_template_id = gt.id
-                        and g.created_by = $1
-                    where
-                        (
-                            gt.created_by = $1
-                            or(
-                                public = true
-                                and approved = true
-                            )
+        select
+            *
+        from
+            (
+                select
+                    distinct on (gt.id) 
+                    gt.id,
+                    gt.title,
+                    count(ft.id) field_amount,
+                    gt.created_by = $1 owned,
+                    p.user_id is not null resumable
+                from
+                    bingo.game_templates gt
+                    join bingo.field_templates ft on ft.game_template_id = gt.id
+                    left outer join bingo.games g on g.game_template_id = gt.id
+                    left outer join bingo.players p on g.id = p.game_id
+                    and p.user_id = $1
+                where
+                    (
+                        gt.created_by = $1
+                        or (
+                            gt.public = true
+                            and gt.approved = true
                         )
-                    group by
-                        gt.id,
-                        g.id
-                ) as sq
-            order by
-                sq.owned desc,
-                title desc
+                    )
+                group by
+                    gt.id,
+                    p.user_id,
+                    g.id
+            ) as sq
+        order by
+            sq.owned desc,
+            title desc
         "#,
         identity.user_id
     )
@@ -73,13 +70,7 @@ pub async fn list(
     Ok(Json(templates))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TemplateIn {
-    title: String,
-    fields: Vec<String>,
-}
-
-pub async fn create(
+pub async fn handle_create_template(
     Extension(state): Extension<AppState>,
     Json(payload): Json<TemplateIn>,
     identity: Identity,
@@ -138,4 +129,84 @@ pub async fn create(
     sleep(Duration::from_millis(1000)).await;
 
     Ok("Template successfully creates.".to_string())
+}
+
+pub async fn handle_delete_template(
+    identity: Identity,
+    Path(game_template_id): Path<Uuid>,
+    Extension(state): Extension<AppState>,
+) -> Result<()> {
+    let pool = state.pool;
+    let user_id = identity.user_id;
+
+    let mut transaction = pool.begin().await?;
+
+    let game_template = sqlx::query!(
+        r#"
+            select 
+                id
+            from
+                bingo.game_templates
+            where
+                id = $1
+                and created_by = $2
+        "#,
+        game_template_id,
+        user_id,
+    )
+    .fetch_one(&mut transaction)
+    .await?;
+
+    let game_ids = sqlx::query!(
+        r#"
+            select 
+                id
+            from
+                bingo.games
+            where
+                game_template_id = $1
+        "#,
+        &game_template.id,
+    )
+    .fetch_all(&mut transaction)
+    .await?
+    .iter()
+    .map(|v| v.id)
+    .collect::<Vec<Uuid>>();
+
+    sqlx::query!(
+        "delete from bingo.fields where game_id = any($1)",
+        &game_ids
+    )
+    .execute(&mut transaction)
+    .await?;
+
+    sqlx::query!(
+        "delete from bingo.players where game_id = any($1)",
+        &game_ids
+    )
+    .execute(&mut transaction)
+    .await?;
+
+    sqlx::query!("delete from bingo.games where id = any($1)", &game_ids)
+        .execute(&mut transaction)
+        .await?;
+
+    sqlx::query!(
+        "delete from bingo.field_templates where game_template_id = $1",
+        &game_template.id
+    )
+    .execute(&mut transaction)
+    .await?;
+
+    sqlx::query!(
+        "delete from bingo.game_templates where id = $1",
+        &game_template.id
+    )
+    .execute(&mut transaction)
+    .await?;
+
+    transaction.commit().await?;
+
+    Ok(())
 }

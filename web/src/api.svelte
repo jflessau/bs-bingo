@@ -73,6 +73,10 @@
       return this.client.post('/templates', body).then(response => callback(response.status, response.data));
     }
 
+    deleteTemplate(id: string, callback: any) {
+      return this.client.delete(`/templates/${id}`).then(response => callback(response.status, response.data));
+    }
+
     // game
 
     startGame(id: string, callback: any) {

@@ -1,5 +1,7 @@
 <script lang="ts">
   import Button from './../components/Button.svelte';
+
+  import { Link } from 'svelte-routing';
   import { onMount } from 'svelte';
   import { apiWsUrl, ApiClient } from './../api.svelte';
 
@@ -140,27 +142,40 @@
 </script>
 
 {#if status === GameStatus.OPEN}
-  <div class="flex flex-row items-center mb-16 {newUsername === undefined ? 'justify-end' : 'justify-end'}">
+  <div class="mt-4 flex flex-row items-center mb-16 justify-between">
+    <div class="nav w-fit p-4 bg-solitude rounded-lg">
+      <Link to="/" class="font-bold px-2 py-4">{'< Home'}</Link>
+    </div>
+
     {#if newUsername === undefined}
       {#if username}
-        <p class="mr-4"><span class="font-bold">{username}</span></p>
-        <Button
-          caption="Edit Username"
-          variant="secondary"
-          size="sm"
-          on:click="{() => {
-            newUsername = '';
-          }}"
-        />
+        <div class="flex flex-row items-center">
+          <p class="mr-4"><span class="font-bold">{username}</span></p>
+          <Button
+            caption="Edit Username"
+            variant="secondary"
+            size="sm"
+            on:click="{() => {
+              newUsername = '';
+            }}"
+          />
+        </div>
       {/if}
     {:else}
-      <input
-        type="text"
-        bind:value="{newUsername}"
-        maxlength="16"
-        class="mr-2 px-2 py-1 text-sm bg-white border-gray border-2 focus:border-sky focus:outline-none rounded-lg"
-      />
-      <Button caption="Save username" size="sm" on:click="{updateUsername}" />
+      <div class="flex flex-row items-center">
+        <input
+          type="text"
+          bind:value="{newUsername}"
+          maxlength="16"
+          class="mr-2 px-2 py-1 text-sm bg-white border-gray border-2 focus:border-sky focus:outline-none rounded-lg"
+        />
+        <Button
+          caption="Save username"
+          size="sm"
+          on:click="{updateUsername}"
+          disabled="{!newUsername || (newUsername && newUsername.length < 1)}"
+        />
+      </div>
     {/if}
   </div>
   <div class="grid gap-2 grid-cols-5 grid-rows-5">
@@ -186,7 +201,7 @@
   </div>
 
   <div class="rounded-lg mt-16 mb-4">
-    <h2 class="font-bold text-lg mb-4">Spieler</h2>
+    <h2 class="font-bold text-lg mb-4">Players</h2>
     {#each players as { username, hits, bingos, isMe }, i}
       <div
         class="w-full mt-2 flex flex-row justify-start items-center rounded border-2 p-2 {isMe
