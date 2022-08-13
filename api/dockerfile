@@ -3,6 +3,8 @@ RUN apt-get -yq update && apt-get -yqq install openssh-client
 
 COPY . .
 
+ENV SQLX_OFFLINE=true
+
 RUN eval `ssh-agent -s` && \
   # ssh-add /root/.ssh/id_rsa && \
   cargo build --target x86_64-unknown-linux-musl --release
