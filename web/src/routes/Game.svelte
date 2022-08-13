@@ -142,7 +142,7 @@
 
 {#if status === GameStatus.OPEN}
   <div class="mt-4 mb-16 flex flex-col items-start md:flex-row md:items-center justify-between">
-    <div class="nav w-fit p-4 bg-solitude rounded-lg mb-8 md:mb-0">
+    <div class="nav w-fit p-4 bg-solitude dark:bg-navy rounded-lg mb-8 md:mb-0">
       <Link to="/" class="font-bold px-2 py-4">{'Home'}</Link>
     </div>
 
@@ -162,12 +162,7 @@
       {/if}
     {:else}
       <div class="flex flex-row items-center">
-        <input
-          type="text"
-          bind:value="{newUsername}"
-          maxlength="16"
-          class="mr-2 px-2 py-1 text-sm bg-white border-gray border-2 focus:border-sky focus:outline-none rounded-lg"
-        />
+        <input type="text" bind:value="{newUsername}" maxlength="16" class="mr-2 px-2 py-1 text-sm rounded-lg" />
         <Button
           caption="Save username"
           size="sm"
@@ -184,14 +179,11 @@
           on:click="{() => toggleField(id)}"
           class="flex justify-center items-center rounded-lg p-2 select-none cursor-pointer {checked
             ? bingo
-              ? 'bg-sun'
-              : 'bg-sky'
-            : 'bg-solitude'}"
+              ? 'bg-sun dark:bg-sun'
+              : 'bg-sky dark:bg-sun'
+            : 'bg-solitude dark:bg-navy'}"
         >
-          <p
-            class="text-xxs sm:text-base text-center {checked ? 'text-solitude font-bold' : 'text-navy'}"
-            style="word-break: break-word;"
-          >
+          <p class="text-xxs sm:text-base text-center {checked ? 'font-bold' : ''}" style="word-break: break-word;">
             {text}
           </p>
         </div>
@@ -203,13 +195,13 @@
     <h2 class="font-bold text-lg mb-4">Players</h2>
     {#each players as { username, hits, bingos, isMe }, i}
       <div
-        class="w-full mt-2 flex flex-row justify-start items-center rounded border-2 p-2 {isMe
+        class="w-full mt-2 flex flex-row justify-start items-center rounded-lg border-4 p-2 {isMe
           ? 'border-sky'
-          : 'border-solitude'}"
+          : 'border-solitude dark:border-navy'}"
       >
         <div class="grid grid-cols-5 overflow-hidden rounded">
           {#each hits as hit, i}
-            <div class="w-3 h-3 {hit ? 'bg-sun' : 'bg-solitude'}"></div>
+            <div class="w-3 h-3 {hit ? 'bg-sun' : 'bg-solitude dark:bg-navy'}"></div>
           {/each}
         </div>
         <div class="flex flex-col ml-8">

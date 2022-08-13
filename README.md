@@ -8,9 +8,12 @@ Stack: [Rust](https://www.rust-lang.org/), [Postgres](https://www.postgresql.org
 
 ## Development
 
-Rename `./api/.example-env` to `.env`.
+Rename `./api/.example-env` to `.env`. Spin up a postgres database and use [sqlx](https://crates.io/crates/sqlx-cli) to run the migrations:
 
-Spin up a postgres database with `docker-compose up` and use [sqlx](https://crates.io/crates/sqlx-cli) to run the migrations: `sqlx migrate run`.
+```bash
+docker-compose up
+sqlx migrate run
+```
 
 Start the frontend dev server with `npm run dev` and run the API service with `cargo run`.
 

@@ -55,7 +55,7 @@
   <p class="text-center w-full">No templates found :(</p>
 {:else}
   {#each templatesData.templates as { title, fieldAmount, owned, id, resumable } (id)}
-    <div class="mt-4 flex flex-row justify-between items-center rounded-lg bg-solitude p-4">
+    <div class="mt-4 p-4 flex flex-row justify-between items-center rounded-lg bg-solitude dark:bg-navy">
       <div class="flex flex-col justify-start items-start mr-4">
         <p class="font-bold break-all">{title}</p>
         <p class="mr-4 text-sm">

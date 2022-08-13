@@ -20,7 +20,8 @@
   <Link to="{link}">
     <div
       on:click="{click}"
-      class="w-fit {variant === 'primary' ? 'bg-sun' : variant === 'text' ? 'bg-gray' : 'bg-sky'} {size === 'sm'
+      class="w-fit {variant === 'primary' ? 'bg-sun dark:bg-navy' : variant === 'text' ? 'bg-gray' : 'bg-sky'} {size ===
+      'sm'
         ? 'px-2 py-1 rounded'
         : 'px-4 py-2 rounded-lg'} select-none cursor-pointer hover:brightness-105 active:brightness-95 {disabled &&
         'saturate-0'} {classes}"
@@ -33,7 +34,8 @@
 {:else}
   <div
     on:click="{click}"
-    class="w-fit {variant === 'primary' ? 'bg-sun' : variant === 'text' ? 'bg-gray' : 'bg-sky'} {size === 'sm'
+    class="w-fit {variant === 'primary' ? 'bg-sun dark:bg-navy' : variant === 'text' ? 'bg-gray' : 'bg-sky'} {size ===
+    'sm'
       ? 'px-2 py-1 rounded'
       : 'px-4 py-2 rounded-lg'} select-none cursor-pointer hover:brightness-105 active:brightness-95 {disabled &&
       'saturate-0'} {classes}"

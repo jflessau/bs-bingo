@@ -61,19 +61,14 @@
 </script>
 
 {#if status === Status.IDLE}
-  <div class="nav mb-16 mt-4 w-fit p-4 bg-solitude rounded-lg">
+  <div class="nav mb-16 mt-4 w-fit p-4 bg-solitude dark:bg-navy rounded-lg">
     <Link to="/" class="font-bold px-2 py-4">{'Home'}</Link>
   </div>
 
   <h2 class="text-2xl mb-4">Create Template</h2>
 
   <h3 class="mt-8 mb-2">Title</h3>
-  <input
-    type="text"
-    bind:value="{title}"
-    maxlength="64"
-    class="p-2 bg-white border-gray border-2 focus:border-sky focus:outline-none rounded-lg"
-  />
+  <input type="text" bind:value="{title}" maxlength="64" class="p-2 rounded-lg" />
 
   <h3 class="mt-8 mb-2">Words</h3>
   <p class="mb-2">You need at least 25 words.</p>
@@ -86,7 +81,7 @@
         maxlength="64"
         use:initInput
         on:keydown="{event => (i === fields.length - 1 ? handleKeypress(event) : {})}"
-        class="p-2 bg-white border-gray border-2 focus:border-sky focus:outline-none rounded-lg"
+        class="p-2 rounded-lg"
       />
     {/each}
   </div>

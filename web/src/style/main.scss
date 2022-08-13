@@ -31,6 +31,7 @@
 
 body {
   background: $white;
+  @apply dark:bg-raisin;
   display: flex;
   flex-direction: row;
   justify-content: center;
@@ -54,9 +55,22 @@ textarea,
 label,
 a {
   @apply text-raisin;
+  @apply dark:text-white;
   @apply font-mono;
   padding: 0;
   margin: 0;
+}
+
+input {
+  @apply font-bold;
+  @apply bg-white;
+  @apply dark:bg-solitude;
+  @apply dark:text-raisin;
+
+  @apply border-4;
+  @apply focus:outline-none;
+  @apply border-gray;
+  @apply focus:border-sky;
 }
 
 h1,
