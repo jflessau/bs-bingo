@@ -453,7 +453,7 @@ async fn get_fields(
         bingo: false,
     });
 
-    // TODO: figure our how to solve this with iter().chunks(5)
+    // TODO: figure our how to solve this with .chunks(5)
 
     let mut result: Vec<Vec<FieldOut>> = Vec::new();
     let mut v: Vec<FieldOut> = Vec::new();

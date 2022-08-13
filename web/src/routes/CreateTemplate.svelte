@@ -13,18 +13,17 @@
   }
 
   interface Field {
-    id: string;
     caption: string;
   }
 
   let status: Status = Status.IDLE;
   let title: string = '';
   let fields: Array<Field> = [];
+  let focusLastInput = false;
 
   onMount(async () => {
     for (let n = 0; n < 25; n++) {
       fields.push({
-        id: n + '',
         caption: '',
       });
       fields = [...fields];
@@ -33,7 +32,6 @@
 
   function addInput() {
     fields.push({
-      id: Math.floor(Math.random() * 1000000) + 1 + '',
       caption: '',
     });
     fields = [...fields];
@@ -50,6 +48,15 @@
       console.error(err);
       status = Status.ERROR;
     });
+  }
+
+  function handleKeypress(event) {
+    event.keyCode === 13 ? (focusLastInput = true) : (focusLastInput = false);
+    if (event.keyCode === 13 || event.keyCode === 9) addInput();
+  }
+
+  function initInput(el) {
+    focusLastInput && el.focus();
   }
 </script>
 
@@ -72,17 +79,19 @@
   <p class="mb-2">You need at least 25 words.</p>
 
   <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-    {#each fields as { id, caption } (id)}
+    {#each fields as { caption }, i}
       <input
         type="text"
         bind:value="{caption}"
         maxlength="64"
+        use:initInput
+        on:keydown="{event => (i === fields.length - 1 ? handleKeypress(event) : {})}"
         class="p-2 bg-white border-gray border-2 focus:border-sky focus:outline-none rounded-lg"
       />
     {/each}
   </div>
 
-  <Button on:click="{addInput}" caption="Add Word" variant="secondary" classes="mt-4" />
+  <Button on:click="{addInput}" caption="Add One More" variant="secondary" classes="mt-4" />
 
   {#if fields.filter(v => v.caption.trim().length > 0).length >= 25 && title.trim().length > 0}
     <Button caption="Save" classes="mt-16 mb-8" on:click="{createTemplate}" />
@@ -98,4 +107,4 @@
   </div>
 {:else if status === Status.LOADING}
   <div class="flex justify-center items-center mt-16"><Circle size="60" color="#009ffd" /></div>
-{:else}<p class="text-center">An error occurred.<br />Please refresh the page.</p>{/if}
+{:else}<p class="text-center">An error occurred :(<br />Please refresh the page.</p>{/if}

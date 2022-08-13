@@ -110,7 +110,6 @@
 
   function assertWebsocket() {
     if (websocket) {
-      console.log('assert websocket', websocket.readyState);
       if (websocket.readyState > 1) {
         startWebSocket();
       }

@@ -40,7 +40,19 @@
     <div class="flex justify-center items-center mt-16"><Circle size="60" color="#009ffd" /></div>
   {:else}
     <div class="flex justify-center items-center mt-16">
-      <p class="text-center">An error occurred.<br />Please refresh the page.</p>
+      <p class="text-center">An error occurred :(<br />Please refresh the page.</p>
     </div>
   {/if}
 </Router>
+
+<div class="w-full mt-32 mb-8">
+  <p class="text-sm text-center mt-32 mb-8">
+    Found a bug?<br />
+    <a class="underline" href="https://github.com/jflessau/bs-bingo/issues">Open an issue</a>
+    or <a class="underline" href="https://github.com/jflessau/bs-bingo">fork </a> me on GitHub.
+  </p>
+  <p class="text-center text-sm">
+    <a class="" href="https://jflessau.com/info/legal-notice/">Legal Notice</a> |
+    <a class="" href="https://jflessau.com/info/privacy-policy/">Privacy Policy</a>
+  </p>
+</div>

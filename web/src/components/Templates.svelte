@@ -103,7 +103,7 @@
               classes="mr-4"
             />
           {/if}
-          <Button caption="Start" size="sm" variant="secondary" link="{`/games/start/${id}`}" />
+          <Button caption="Play" size="sm" variant="secondary" link="{`/games/start/${id}`}" />
         {/if}
       </div>
     </div>
