@@ -13,6 +13,22 @@
 
   export const authStore: Writable<AuthStatus> = writable(AuthStatus.IDLE);
 
+  // notification
+
+  export enum NotificationLevel {
+    INFO,
+    WARNING,
+  }
+  export interface Notification {
+    id: string;
+    createdAt: Date;
+    agePercent: number;
+    level: NotificationLevel;
+    text: string;
+  }
+
+  export const notificationsStore: Writable<Notification[]> = writable([]);
+
   // templates
 
   export enum TemplatesStatus {

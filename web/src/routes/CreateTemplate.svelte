@@ -2,7 +2,6 @@
   import { ApiClient } from './../api.svelte';
   import { onMount } from 'svelte';
   import { Circle } from 'svelte-loading-spinners';
-  import { Link } from 'svelte-routing';
   import Button from './../components/Button.svelte';
 
   enum Status {

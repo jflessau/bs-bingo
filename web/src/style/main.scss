@@ -53,12 +53,14 @@ select,
 input,
 textarea,
 label,
+div,
 a {
   @apply text-raisin;
   @apply dark:text-white;
   @apply font-mono;
   padding: 0;
   margin: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
 input {

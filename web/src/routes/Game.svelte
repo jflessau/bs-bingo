@@ -2,6 +2,7 @@
   import Button from './../components/Button.svelte';
   import { Circle } from 'svelte-loading-spinners';
   import { Confetti } from 'svelte-confetti';
+  import { createNotification } from './../components/Sackbar.svelte';
   import { onMount } from 'svelte';
   import { apiWsUrl, ApiClient } from './../api.svelte';
 
@@ -115,10 +116,24 @@
       } else if (data.players) {
         let playersUpdate: Player[] = data.players;
 
+        // confetti if player got bingo
+
         let pastMe = players.find((v: Player) => v.isMe === true);
         let futureMe = playersUpdate.find((v: Player) => v.isMe === true);
         if (pastMe && futureMe && pastMe.bingos < futureMe.bingos) {
           showConfetti = new Date();
+        }
+
+        // notification if opponent got bingo
+
+        for (let player of players) {
+          for (let newPlayer of playersUpdate) {
+            if (player.userId === newPlayer.userId && !newPlayer.isMe && newPlayer.bingos > player.bingos) {
+              createNotification(
+                `${newPlayer.username} now has ${newPlayer.bingos} bingo${newPlayer.bingos > 1 ? 's' : ''}! (+1)`,
+              );
+            }
+          }
         }
 
         players = playersUpdate;
@@ -258,10 +273,10 @@
         on:click="{() => {
           navigator.clipboard.writeText(`${url}/games/join/${code}`).then(
             function () {
-              console.log('Copying to clipboard was successful!');
+              createNotification('Copied!');
             },
-            function (err) {
-              console.error('Could not copy text: ', err);
+            function (_) {
+              createNotification('Failed to copy :(');
             },
           );
         }}"
