@@ -8,7 +8,6 @@ use axum::{
     Json,
 };
 use std::str;
-use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 
 pub async fn handle_list_templates(
@@ -125,8 +124,6 @@ pub async fn handle_create_template(
         .execute(pool)
         .await?;
     }
-
-    sleep(Duration::from_millis(1000)).await;
 
     Ok("Template successfully creates.".to_string())
 }

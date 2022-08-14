@@ -12,6 +12,7 @@ use http::{
 };
 use sqlx::postgres::PgPool;
 use std::{env, net::SocketAddr};
+use tokio::time::{sleep, Duration};
 use tower::ServiceBuilder;
 use tower_http::{
     cors::{CorsLayer, Origin},
@@ -149,6 +150,17 @@ where
         let jar: CookieJar = CookieJar::from_request(req)
             .await
             .map_err(|_| error::Error::InvalidCredentials)?;
+
+        // delay responses for a few milliseconds to be able to debug loading states in the frontend
+
+        sleep(Duration::from_millis(
+            dotenv::var("REQUEST_DELAY_MS")
+                .unwrap_or_else(|_| "0".into())
+                .parse::<u16>()
+                .expect("parsing REQUEST_DELAY_MS failes")
+                .into(),
+        ))
+        .await;
 
         if let Ok(Extension(pool)) = Extension::<PgPool>::from_request(req).await {
             if let Some(user_id) = jar.get("user_id").map(|cookie| cookie.value().to_owned()) {

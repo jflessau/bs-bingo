@@ -61,9 +61,7 @@
 </script>
 
 {#if status === Status.IDLE}
-  <div class="nav mb-16 mt-4 w-fit p-4 bg-solitude dark:bg-navy rounded-lg">
-    <Link to="/" class="font-bold px-2 py-4">{'Home'}</Link>
-  </div>
+  <Button caption="Home" variant="secondary" link="{`/`}" classes="mb-16 mt-4" />
 
   <h2 class="text-2xl mb-4">Create Template</h2>
 

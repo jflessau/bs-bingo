@@ -1,7 +1,6 @@
 <script lang="ts">
   import Button from './../components/Button.svelte';
-
-  import { Link } from 'svelte-routing';
+  import { Circle } from 'svelte-loading-spinners';
   import { onMount } from 'svelte';
   import { apiWsUrl, ApiClient } from './../api.svelte';
 
@@ -34,7 +33,6 @@
     INIT,
     LOADING,
     OPEN,
-    CLOSED,
     ERROR,
   }
 
@@ -58,6 +56,7 @@
 
   onMount(async () => {
     if (gameTemplateId) {
+      status = GameStatus.LOADING;
       await ApiClient.startGame(gameTemplateId, (_status: number, data: GameUpdate) => {
         code = data.accessCode;
         fields = data.fields;
@@ -140,15 +139,19 @@
   }
 </script>
 
-{#if status === GameStatus.OPEN}
-  <div class="mt-4 mb-16 flex flex-col items-start md:flex-row md:items-center justify-between">
-    <div class="nav w-fit p-4 bg-solitude dark:bg-navy rounded-lg mb-8 md:mb-0">
-      <Link to="/" class="font-bold px-2 py-4">{'Home'}</Link>
-    </div>
+{#if status === GameStatus.ERROR}
+  <div class="flex justify-center items-center mt-16">
+    <p class="text-center">An error occurred :(<br />Please refresh the page.</p>
+  </div>
+{:else if status === GameStatus.INIT || status === GameStatus.LOADING}
+  <div class="flex justify-center items-center mt-16"><Circle size="60" color="#009ffd" /></div>
+{:else if status === GameStatus.OPEN}
+  <div class="mt-4 mb-16 flex flex-col items-start sm:flex-row sm:items-center justify-between">
+    <Button caption="Home" variant="secondary" link="{`/`}" classes="mb-8 sm:mb-0" />
 
     {#if newUsername === undefined}
       {#if username}
-        <div class="w-full flex flex-row items-center justify-between sm:justify-end">
+        <div class="w-full flex flex-row items-center justify-end">
           <p class="mr-4"><span class="font-bold">{username}</span></p>
           <Button
             caption="Edit Username"
@@ -161,10 +164,11 @@
         </div>
       {/if}
     {:else}
-      <div class="flex flex-row items-center">
+      <div class="w-full flex flex-row items-center justify-end">
         <input type="text" bind:value="{newUsername}" maxlength="16" class="mr-2 px-2 py-1 text-sm rounded-lg" />
         <Button
           caption="Save username"
+          variant="primary"
           size="sm"
           on:click="{updateUsername}"
           disabled="{!newUsername || (newUsername && newUsername.length < 1)}"
@@ -183,7 +187,10 @@
               : 'bg-sky dark:bg-sun'
             : 'bg-solitude dark:bg-navy'}"
         >
-          <p class="text-xxs sm:text-base text-center {checked ? 'font-bold' : ''}" style="word-break: break-word;">
+          <p
+            class="text-xxs sm:text-base text-center {checked ? 'font-bold text-white' : ''}"
+            style="word-break: break-word;"
+          >
             {text}
           </p>
         </div>
@@ -218,6 +225,22 @@
       <p class="text-sm font-bold">
         <a class="text-sky underline break-all" href="{`${url}/games/join/${code}`}">{`${url}/games/join/${code}`}</a>
       </p>
+      <Button
+        caption="Copy to Clipboard"
+        variant="secondary"
+        size="sm"
+        on:click="{() => {
+          navigator.clipboard.writeText(`${url}/games/join/${code}`).then(
+            function () {
+              console.log('Copying to clipboard was successful!');
+            },
+            function (err) {
+              console.error('Could not copy text: ', err);
+            },
+          );
+        }}"
+        classes="mt-4"
+      />
     {/if}
   </div>
 {/if}

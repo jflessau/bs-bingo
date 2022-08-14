@@ -1,3 +1,4 @@
 DATABASE_URL=postgres://bs_bingo:muchsecretwow@localhost:8433/bs_bingo
 PORT=1313
 CORS_ALLOWED_ORIGIN=http://localhost:3000
+REQUEST_DELAY_MS=220

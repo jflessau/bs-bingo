@@ -25,6 +25,7 @@
   }
 
   async function leaveGame(id) {
+    templatesStore.set({ ...templatesData, status: TemplatesStatus.LOADING });
     ApiClient.leaveGame(id, (_status: number) => {
       listTemplates();
     }).catch((err: any) => {
@@ -33,6 +34,7 @@
   }
 
   async function deleteTemplate(id) {
+    templatesStore.set({ ...templatesData, status: TemplatesStatus.LOADING });
     ApiClient.deleteTemplate(id, (_status: number) => {
       listTemplates();
       templateToDelete = undefined;
@@ -48,7 +50,9 @@
 </div>
 
 {#if templatesData.status === TemplatesStatus.LOADING}
-  <div class="flex justify-center items-center mt-4 rounded-lg bg-solitude w-full rounded-lg bg-solitude p-4">
+  <div
+    class="flex justify-center items-center mt-4 rounded-lg bg-solitude dark:bg-navy w-full rounded-lg bg-solitude p-4"
+  >
     <Circle size="44" color="#009ffd" />
   </div>
 {:else if templatesData.templates.length < 1}
