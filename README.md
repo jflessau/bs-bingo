@@ -8,13 +8,15 @@ Stack: [Rust](https://www.rust-lang.org/), [Postgres](https://www.postgresql.org
 
 ## Development
 
-Rename `./api/.example-env` to `.env`. Spin up a postgres database and use [sqlx](https://crates.io/crates/sqlx-cli) to run the migrations:
+Prepare the `.env` file, spin up a postgres database and use [sqlx](https://crates.io/crates/sqlx-cli) to run the migrations:
 
 ```bash
+cp api/.example-env api/.env
 docker-compose up
+cargo install sqlx-cli
 sqlx migrate run
 ```
 
-Start the frontend dev server with `npm run dev` and run the API service with `cargo run`.
+Start the frontend dev server with `npm i && npm run dev` and run the API service with `cargo run`.
 
 Happy hacking :)
