@@ -1,6 +1,7 @@
 <script lang="ts">
   import Button from './../components/Button.svelte';
   import { Circle } from 'svelte-loading-spinners';
+  import { Confetti } from 'svelte-confetti';
   import { onMount } from 'svelte';
   import { apiWsUrl, ApiClient } from './../api.svelte';
 
@@ -51,6 +52,17 @@
   let players: Array<Player> = [];
   let fields: Array<Array<Field>> = [];
   let websocket: any | undefined = undefined;
+  let showConfetti: undefined | Date = undefined;
+
+  const confettiDuration = 2000;
+  const interval = () =>
+    showConfetti && new Date().getTime() - showConfetti.getTime() > confettiDuration ? (showConfetti = undefined) : {};
+
+  let clear: ReturnType<typeof setInterval>;
+  $: {
+    clearInterval(clear);
+    clear = setInterval(interval, confettiDuration);
+  }
 
   let newUsername: string | undefined = undefined;
 
@@ -101,7 +113,14 @@
         let fieldsUpdate: Array<Array<Field>> = data.fields;
         fields = fieldsUpdate;
       } else if (data.players) {
-        let playersUpdate: Array<Player> = data.players;
+        let playersUpdate: Player[] = data.players;
+
+        let pastMe = players.find((v: Player) => v.isMe === true);
+        let futureMe = playersUpdate.find((v: Player) => v.isMe === true);
+        if (pastMe && futureMe && pastMe.bingos < futureMe.bingos) {
+          showConfetti = new Date();
+        }
+
         players = playersUpdate;
       }
     });
@@ -176,6 +195,7 @@
       </div>
     {/if}
   </div>
+
   <div class="grid gap-2 grid-cols-5 grid-rows-5">
     {#each fields as row, i}
       {#each row as { id, text, checked, bingo } (id)}
@@ -197,6 +217,12 @@
       {/each}
     {/each}
   </div>
+
+  {#if showConfetti}
+    <div class="flex flex-row justify-center">
+      <Confetti amount="50" xSpread="0.15" fallDistance="200px" duration="{confettiDuration}" />
+    </div>
+  {/if}
 
   <div class="rounded-lg mt-16 mb-4">
     <h2 class="font-bold text-lg mb-4">Players</h2>
