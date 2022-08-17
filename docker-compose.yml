@@ -3,6 +3,7 @@ services:
   postgres:
     container_name: bs_bingo_postgres
     image: postgres
+    # command: postgres -c 'max_connections=8'
     environment:
       POSTGRES_DB: bs_bingo
       POSTGRES_USER: bs_bingo

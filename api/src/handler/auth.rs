@@ -1,6 +1,6 @@
 use crate::{
     error::{Error, Result},
-    AppState,
+    server::AppState,
 };
 use axum::extract::Extension;
 use axum_extra::extract::cookie::{Cookie, CookieJar};
