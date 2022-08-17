@@ -1,10 +1,7 @@
 use dotenv::dotenv;
 use sqlx::postgres::PgPool;
-use std::{
-    collections::HashMap,
-    env,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, env};
+use tokio::sync::watch;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod body;
@@ -34,10 +31,10 @@ async fn main() {
         .await
         .expect("running migrations fails");
 
-    let recently_updated_games = Arc::new(Mutex::new(HashMap::new()));
+    let (sender, receiver) = watch::channel(HashMap::new());
 
     let _ = tokio::join!(
-        server::serve(pool.clone(), recently_updated_games.clone()),
-        pg_listen::listen(&pool, recently_updated_games)
+        server::serve(pool.clone(), receiver.clone()),
+        pg_listen::listen(&pool, sender)
     );
 }

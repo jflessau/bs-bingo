@@ -14,7 +14,6 @@ use axum::{
 use chrono::{Duration, Utc};
 use rand::{distributions::Alphanumeric, seq::SliceRandom, thread_rng, Rng};
 use sqlx::postgres::PgPool;
-use tokio::time::{sleep, Duration as TokioDuration};
 use uuid::Uuid;
 
 pub async fn ws(
@@ -45,7 +44,7 @@ pub async fn send_game_update_messages(
     game_id: Uuid,
 ) -> Result<Vec<String>> {
     let pool = &state.pool;
-    let receiver = state.receiver.clone();
+    let mut receiver = state.receiver.clone();
     let mut socket_healthy = true;
 
     // check if game exists
@@ -77,43 +76,39 @@ pub async fn send_game_update_messages(
     // while socket is healthy: listen for postgres notifications and send respective updates to client
 
     let mut latest_game_update_at = Utc::now() - Duration::days(1);
-    let mut game_updated_recently = false;
 
     while socket_healthy {
-        sleep(TokioDuration::from_millis(100)).await;
+        // sleep(TokioDuration::from_millis(100)).await;
 
-        if let Ok(ref mut recently_updates_games) = receiver.try_lock() {
-            game_updated_recently = recently_updates_games
+        if receiver.changed().await.is_ok() {
+            let game_updated_recently = receiver
+                .borrow()
                 .get(&game_id)
                 .map(|v| v > &latest_game_update_at)
                 .unwrap_or(false);
-        } else {
-            tracing::info!("try_lock fails for read");
-        }
 
-        if game_updated_recently {
-            tracing::info!("game_id: {}, game.id: {}", game_id, game.id);
+            if game_updated_recently {
+                latest_game_update_at = Utc::now();
 
-            latest_game_update_at = Utc::now();
+                let mut messages = Vec::new();
 
-            let mut messages = Vec::new();
+                if game_id == game.id {
+                    let fields = get_fields(game.game_template_id, game_id, user_id, pool).await?;
+                    messages.push(serde_json::to_string(&MessageOut::Fields(fields))?);
 
-            if game_id == game.id {
-                tracing::info!("about to send ws message");
+                    let players = get_players(game_id, user_id, pool).await?;
+                    messages.push(serde_json::to_string(&MessageOut::Players(players))?);
 
-                let fields = get_fields(game.game_template_id, game_id, user_id, pool).await?;
-                messages.push(serde_json::to_string(&MessageOut::Fields(fields))?);
-
-                let players = get_players(game_id, user_id, pool).await?;
-                messages.push(serde_json::to_string(&MessageOut::Players(players))?);
-
-                for message in messages {
-                    if let Err(err) = socket.send(Message::Text(message)).await {
-                        tracing::warn!("Failed to send message: {:?}", err);
-                        socket_healthy = false;
+                    for message in messages {
+                        if let Err(err) = socket.send(Message::Text(message)).await {
+                            tracing::warn!("Failed to send message: {:?}", err);
+                            socket_healthy = false;
+                        }
                     }
                 }
             }
+        } else {
+            tracing::warn!("sender has been dropped");
         }
     }
 

@@ -12,8 +12,8 @@ use http::{
     Method,
 };
 use sqlx::postgres::PgPool;
-use std::sync::{Arc, Mutex};
 use std::{collections::HashMap, env, net::SocketAddr};
+use tokio::sync::watch::Receiver;
 use tokio::time::{sleep, Duration};
 use tower::ServiceBuilder;
 use tower_http::{
@@ -23,7 +23,7 @@ use tower_http::{
 };
 use uuid::Uuid;
 
-pub async fn serve(pool: PgPool, receiver: Arc<Mutex<HashMap<Uuid, DateTime<Utc>>>>) {
+pub async fn serve(pool: PgPool, receiver: Receiver<HashMap<Uuid, DateTime<Utc>>>) {
     let port = dotenv::var("PORT")
         .unwrap_or_else(|_| "1313".into())
         .parse::<u16>()
@@ -62,7 +62,7 @@ pub async fn serve(pool: PgPool, receiver: Arc<Mutex<HashMap<Uuid, DateTime<Utc>
         .layer(cors)
         .layer(Extension(AppState {
             pool: pool.clone(),
-            receiver: receiver,
+            receiver,
         }));
 
     let app = Router::new()
@@ -108,7 +108,7 @@ async fn health() -> error::Result<String> {
 #[derive(Clone)]
 pub struct AppState {
     pub pool: sqlx::Pool<sqlx::Postgres>,
-    pub receiver: Arc<Mutex<HashMap<Uuid, DateTime<Utc>>>>,
+    pub receiver: Receiver<HashMap<Uuid, DateTime<Utc>>>,
 }
 
 #[derive(Clone)]
