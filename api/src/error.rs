@@ -42,8 +42,13 @@ impl From<dotenv::Error> for Error {
 
 impl From<sqlx::Error> for Error {
     fn from(err: sqlx::Error) -> Self {
-        tracing::error!("sqlx error: {}", err.to_string());
-        Error::InternalServer
+        if let sqlx::Error::RowNotFound = err {
+            tracing::warn!("row not found");
+            Error::NotFound
+        } else {
+            tracing::error!("sqlx error: {}", err.to_string());
+            Error::InternalServer
+        }
     }
 }
 

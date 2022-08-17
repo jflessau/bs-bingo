@@ -130,7 +130,7 @@
           for (let newPlayer of playersUpdate) {
             if (player.userId === newPlayer.userId && !newPlayer.isMe && newPlayer.bingos > player.bingos) {
               createNotification(
-                `${newPlayer.username} now has ${newPlayer.bingos} bingo${newPlayer.bingos > 1 ? 's' : ''}! (+1)`,
+                `${newPlayer.username} now has ${newPlayer.bingos} bingo${newPlayer.bingos > 1 ? 's' : ''}!`,
               );
             }
           }

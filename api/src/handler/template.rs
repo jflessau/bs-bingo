@@ -1,7 +1,7 @@
 use crate::{
     body::{TemplateIn, TemplateOut},
     error::{Error, Result},
-    AppState, Identity,
+    server::{AppState, Identity},
 };
 use axum::{
     extract::{Extension, Path},

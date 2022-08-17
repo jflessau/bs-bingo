@@ -55,7 +55,7 @@
       out:fly
     >
       <div class="w-full flex flex-col">
-        <p class="w-full px-4 py-2 text-raisin font-bold break-all text-xs">{notification.text}</p>
+        <p class="w-full px-4 py-2 text-raisin font-bold text-xs">{notification.text}</p>
         <div class="w-full bg-white" style="height: 2px;">
           <div
             class="bg-sky"

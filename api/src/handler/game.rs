@@ -1,7 +1,7 @@
 use crate::{
-    body::{FieldOut, GameOut, MessageOut, PgGameUpdateNotification, PlayerOut, UsernameIn},
+    body::{FieldOut, GameOut, MessageOut, PlayerOut, UsernameIn},
     error::Result,
-    AppState, Identity,
+    server::{AppState, Identity},
 };
 use axum::{
     extract::{
@@ -11,8 +11,8 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use chrono::{Duration, Utc};
 use rand::{distributions::Alphanumeric, seq::SliceRandom, thread_rng, Rng};
-use sqlx::postgres::PgListener;
 use sqlx::postgres::PgPool;
 use uuid::Uuid;
 
@@ -44,6 +44,7 @@ pub async fn send_game_update_messages(
     game_id: Uuid,
 ) -> Result<Vec<String>> {
     let pool = &state.pool;
+    let mut receiver = state.receiver.clone();
     let mut socket_healthy = true;
 
     // check if game exists
@@ -66,40 +67,48 @@ pub async fn send_game_update_messages(
     .fetch_one(pool)
     .await?;
 
-    let mut listener = PgListener::connect(&state.database_url).await?;
+    // let mut listener = PgListener::connect_with(pool).await?;
 
-    listener
-        .listen_all(vec!["fields_update", "players_update"])
-        .await?;
+    // listener
+    //     .listen_all(vec!["fields_update", "players_update"])
+    //     .await?;
 
     // while socket is healthy: listen for postgres notifications and send respective updates to client
 
+    let mut latest_game_update_at = Utc::now() - Duration::days(1);
+
     while socket_healthy {
-        let notification = listener.recv().await?;
+        // sleep(TokioDuration::from_millis(100)).await;
 
-        let mut messages = Vec::new();
+        if receiver.changed().await.is_ok() {
+            let game_updated_recently = receiver
+                .borrow()
+                .get(&game_id)
+                .map(|v| v > &latest_game_update_at)
+                .unwrap_or(false);
 
-        let game_update: PgGameUpdateNotification = serde_json::from_str(notification.payload())?;
+            if game_updated_recently {
+                latest_game_update_at = Utc::now();
 
-        if game_update.game_id == game.id {
-            if notification.channel() == "fields_update" {
-                let fields = get_fields(game.game_template_id, game_id, user_id, pool).await?;
-                messages.push(serde_json::to_string(&MessageOut::Fields(fields))?);
+                let mut messages = Vec::new();
 
-                let players = get_players(game_id, user_id, pool).await?;
-                messages.push(serde_json::to_string(&MessageOut::Players(players))?);
-            } else if notification.channel() == "players_update" {
-                let players = get_players(game_id, user_id, pool).await?;
+                if game_id == game.id {
+                    let fields = get_fields(game.game_template_id, game_id, user_id, pool).await?;
+                    messages.push(serde_json::to_string(&MessageOut::Fields(fields))?);
 
-                messages.push(serde_json::to_string(&MessageOut::Players(players))?);
-            }
+                    let players = get_players(game_id, user_id, pool).await?;
+                    messages.push(serde_json::to_string(&MessageOut::Players(players))?);
 
-            for message in messages {
-                if let Err(err) = socket.send(Message::Text(message)).await {
-                    tracing::warn!("Failed to send message: {:?}", err);
-                    socket_healthy = false;
+                    for message in messages {
+                        if let Err(err) = socket.send(Message::Text(message)).await {
+                            tracing::warn!("Failed to send message: {:?}", err);
+                            socket_healthy = false;
+                        }
+                    }
                 }
             }
+        } else {
+            tracing::warn!("sender has been dropped");
         }
     }
 
