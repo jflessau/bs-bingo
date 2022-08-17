@@ -47,10 +47,10 @@
   });
 </script>
 
-<div class="w-full px-2 fixed top-0 flex flex-col justify-center items-center">
+<div class="pr-2 sm:pr-4 fixed bottom-0 right-0" style="width: 300px;">
   {#each notificationsData as notification (notification.id)}
     <div
-      class="w-full mt-4 max-w-xs flex flex-row overflow-hidden rounded-lg bg-white border border-sky"
+      class="w-full mb-2 sm:mb-4 max-w-xs flex flex-row overflow-hidden rounded-lg bg-white border border-sky drop-shadow-2xl dark:drop-shadow-none"
       in:fly
       out:fly
     >

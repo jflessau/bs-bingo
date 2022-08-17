@@ -124,6 +124,24 @@
           showConfetti = new Date();
         }
 
+        // notification if new opponent joins
+
+        let playersJoined: number = 0;
+        for (let newPlayer of playersUpdate) {
+          let known: boolean = false;
+          for (let player of players) {
+            if (newPlayer.userId === player.userId) {
+              known = true;
+            }
+          }
+          if (!known && !newPlayer.isMe) {
+            playersJoined++;
+          }
+        }
+        if (playersJoined > 0) {
+          createNotification(`${playersJoined} player${playersJoined > 1 ? 's' : ''} joined!`);
+        }
+
         // notification if opponent got bingo
 
         for (let player of players) {
