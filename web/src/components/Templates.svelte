@@ -58,21 +58,24 @@
 {:else if templatesData.templates.length < 1}
   <p class="text-center w-full">No templates found :(</p>
 {:else}
-  {#each templatesData.templates as { title, fieldAmount, owned, id, resumable } (id)}
+  {#each templatesData.templates as template (template.id)}
     <div class="mt-4 p-4 flex flex-row justify-between items-center rounded-lg bg-solitude dark:bg-navy">
       <div class="flex flex-col justify-start items-start mr-4">
-        <p class="font-bold break-all">{title}</p>
+        <p class="font-bold break-all">{template.title}</p>
         <p class="mr-4 text-sm">
-          {#if owned}
-            <span>private</span>,
-          {:else}
-            <span>public</span>,
+          {#if template.owned}
+            <span>yours</span>
+          {:else if template.approved}
+            <span>public</span>
+          {:else if template.accessCode}
+            <span>invited</span>
           {/if}
-          {fieldAmount} Words
+          <!-- {template.fieldAmount} Words -->
+          {template.playerAmount > 0 ? `| ${template.playerAmount} player${template.playerAmount > 1 ? 's' : ''}` : ''}
         </p>
       </div>
       <div class="flex flex-row justify-center items-center">
-        {#if templateToDelete === id}
+        {#if templateToDelete === template.id}
           <Button
             caption="Don't Delete Template"
             size="sm"
@@ -86,28 +89,30 @@
             variant="primary"
             on:click="{() => deleteTemplate(templateToDelete)}"
           />
-        {:else if resumable}
-          {#if owned}
+        {:else}
+          {#if template.owned}
             <Button
               caption="Delete"
               size="sm"
               variant="text"
-              on:click="{() => (templateToDelete = id)}"
+              on:click="{() => (templateToDelete = template.id)}"
               classes="mr-4"
             />
           {/if}
-          <Button caption="Leave" size="sm" variant="secondary" on:click="{() => leaveGame(id)}" classes="mr-4" />
-          <Button caption="Continue" size="sm" variant="secondary" link="{`/games/start/${id}`}" />
-        {:else}{#if owned}
-            <Button
-              caption="Delete"
-              size="sm"
-              variant="text"
-              on:click="{() => (templateToDelete = id)}"
-              classes="mr-4"
-            />
+          {#if template.owned || template.approved || template.accessCode}
+            {#if template.accessCode}
+              <Button
+                caption="Leave"
+                size="sm"
+                variant="secondary"
+                on:click="{() => leaveGame(template.id)}"
+                classes="mr-4"
+              />
+              <Button caption="Continue" size="sm" variant="secondary" link="{`/games/join/${template.accessCode}`}" />
+            {:else}
+              <Button caption="Play" size="sm" variant="secondary" link="{`/games/start/${template.id}`}" />
+            {/if}
           {/if}
-          <Button caption="Play" size="sm" variant="secondary" link="{`/games/start/${id}`}" />
         {/if}
       </div>
     </div>

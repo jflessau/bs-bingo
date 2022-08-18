@@ -18,39 +18,66 @@ pub async fn handle_list_templates(
 
     let templates = sqlx::query!(
         r#"
-        select
-            *
-        from
-            (
-                select
-                    distinct on (gt.id) 
-                    gt.id,
-                    gt.title,
-                    count(ft.id) field_amount,
-                    gt.created_by = $1 owned,
-                    p.user_id is not null resumable
-                from
-                    bingo.game_templates gt
-                    join bingo.field_templates ft on ft.game_template_id = gt.id
-                    left outer join bingo.games g on g.game_template_id = gt.id
-                    left outer join bingo.players p on g.id = p.game_id
-                    and p.user_id = $1
-                where
-                    (
+            select
+                sq.id,
+                sq.title, 
+                sq.field_amount,
+                sq.player_amount,
+                sq.owned,
+                sq.public,
+                sq.startable,
+                sq.access_code "access_code?"
+            from
+                (
+                    select
+                        distinct on (gt.id) gt.id,
+                        gt.title,
+                        ft.field_amount,
+                        coalesce(g.player_amount, 0) player_amount,
+                        gt.created_by = $1 owned,
+                        (
+                            gt.public
+                            and gt.approved
+                        ) public,
                         gt.created_by = $1
                         or (
-                            gt.public = true
-                            and gt.approved = true
-                        )
-                    )
-                group by
-                    gt.id,
-                    p.user_id,
-                    g.id
-            ) as sq
-        order by
-            sq.owned desc,
-            title desc
+                            gt.public
+                            and gt.approved
+                        ) startable,
+                        joinable_game.access_code
+                    from
+                        bingo.game_templates gt
+                        left outer join bingo.games active_game on active_game.game_template_id = gt.id
+                        left outer join bingo.fields joinable_game_field on joinable_game_field.game_id = active_game.id
+                        and joinable_game_field.user_id = $1
+                        left outer join bingo.games joinable_game on joinable_game.id = joinable_game_field.game_id
+                        left outer join lateral (
+                            select
+                                g.id,
+                                count(p.user_id) player_amount
+                            from
+                                bingo.games as g
+                                join bingo.players p on p.game_id = g.id
+                            group by
+                                g.id
+                        ) g on g.id = joinable_game.id
+                        left outer join lateral (
+                            select
+                                ft.game_template_id,
+                                count(ft.game_template_id) field_amount
+                            from
+                                bingo.field_templates as ft
+                            group by
+                                ft.game_template_id
+                        ) ft on ft.game_template_id = gt.id
+                ) sq
+            where 
+                startable 
+                or access_code is not null
+            order by 
+                access_code asc, 
+                owned desc, 
+                startable desc
         "#,
         identity.user_id
     )
@@ -61,8 +88,10 @@ pub async fn handle_list_templates(
         id: v.id,
         title: v.title,
         field_amount: v.field_amount.unwrap_or(0),
+        player_amount: v.player_amount.unwrap_or(0),
         owned: v.owned.unwrap_or(false),
-        resumable: v.resumable.unwrap_or(false),
+        approved: v.public.unwrap_or(false),
+        access_code: v.access_code,
     })
     .collect::<Vec<TemplateOut>>();
 

@@ -162,10 +162,10 @@ pub async fn handle_start_game(
 
         let game = sqlx::query!(
             r#"
-            insert into bingo.games (game_template_id, access_code, created_by)
-            values ($1, $2, $3)
-            returning *
-        "#,
+                insert into bingo.games (game_template_id, access_code, created_by)
+                values ($1, $2, $3)
+                returning *
+            "#,
             game_template_id,
             game_access_code,
             user_id

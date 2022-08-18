@@ -42,8 +42,10 @@
     id: string;
     title: string;
     fieldAmount: number;
+    playerAmount: number;
     owned: boolean;
-    resumable: boolean;
+    approved: boolean;
+    accessCode: string | null;
   }
 
   export interface Templates {

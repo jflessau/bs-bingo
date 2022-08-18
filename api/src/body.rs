@@ -8,8 +8,10 @@ pub struct TemplateOut {
     pub id: Uuid,
     pub title: String,
     pub field_amount: i64,
+    pub player_amount: i64,
     pub owned: bool,
-    pub resumable: bool,
+    pub approved: bool,
+    pub access_code: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
