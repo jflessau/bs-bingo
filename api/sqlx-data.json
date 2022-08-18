@@ -1,49 +1,5 @@
 {
   "db": "PostgreSQL",
-  "0386ef5529b87941c9f6135e357bdf4839c7f43ca8db8537dd9cf383025e5d6a": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "title",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "field_amount",
-          "ordinal": 2,
-          "type_info": "Int8"
-        },
-        {
-          "name": "owned",
-          "ordinal": 3,
-          "type_info": "Bool"
-        },
-        {
-          "name": "resumable",
-          "ordinal": 4,
-          "type_info": "Bool"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        null,
-        null,
-        null
-      ],
-      "parameters": {
-        "Left": [
-          "Uuid"
-        ]
-      }
-    },
-    "query": "\n        select\n            *\n        from\n            (\n                select\n                    distinct on (gt.id) \n                    gt.id,\n                    gt.title,\n                    count(ft.id) field_amount,\n                    gt.created_by = $1 owned,\n                    p.user_id is not null resumable\n                from\n                    bingo.game_templates gt\n                    join bingo.field_templates ft on ft.game_template_id = gt.id\n                    left outer join bingo.games g on g.game_template_id = gt.id\n                    left outer join bingo.players p on g.id = p.game_id\n                    and p.user_id = $1\n                where\n                    (\n                        gt.created_by = $1\n                        or (\n                            gt.public = true\n                            and gt.approved = true\n                        )\n                    )\n                group by\n                    gt.id,\n                    p.user_id,\n                    g.id\n            ) as sq\n        order by\n            sq.owned desc,\n            title desc\n        "
-  },
   "11613768a9aeade4c94bb28d811835a9086b03d9b4831f0911b205a2464bd88c": {
     "describe": {
       "columns": [],
@@ -222,6 +178,68 @@
     },
     "query": "\n                insert into bingo.fields (game_id, field_template_id, position, user_id)\n                values ($1, $2, $3, $4)\n            "
   },
+  "5d8890c70743a2cd5660a76229733300ca0a34f25ed29c5330c9746965a69f8d": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "title",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "field_amount",
+          "ordinal": 2,
+          "type_info": "Int8"
+        },
+        {
+          "name": "player_amount",
+          "ordinal": 3,
+          "type_info": "Int8"
+        },
+        {
+          "name": "owned",
+          "ordinal": 4,
+          "type_info": "Bool"
+        },
+        {
+          "name": "public",
+          "ordinal": 5,
+          "type_info": "Bool"
+        },
+        {
+          "name": "startable",
+          "ordinal": 6,
+          "type_info": "Bool"
+        },
+        {
+          "name": "access_code?",
+          "ordinal": 7,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        null,
+        null,
+        null,
+        null,
+        null,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      }
+    },
+    "query": "\n            select\n                sq.id,\n                sq.title, \n                sq.field_amount,\n                sq.player_amount,\n                sq.owned,\n                sq.public,\n                sq.startable,\n                sq.access_code \"access_code?\"\n            from\n                (\n                    select\n                        distinct on (gt.id) gt.id,\n                        gt.title,\n                        ft.field_amount,\n                        coalesce(g.player_amount, 0) player_amount,\n                        gt.created_by = $1 owned,\n                        (\n                            gt.public\n                            and gt.approved\n                        ) public,\n                        gt.created_by = $1\n                        or (\n                            gt.public\n                            and gt.approved\n                        ) startable,\n                        joinable_game.access_code\n                    from\n                        bingo.game_templates gt\n                        left outer join bingo.games active_game on active_game.game_template_id = gt.id\n                        left outer join bingo.fields joinable_game_field on joinable_game_field.game_id = active_game.id\n                        and joinable_game_field.user_id = $1\n                        left outer join bingo.games joinable_game on joinable_game.id = joinable_game_field.game_id\n                        left outer join lateral (\n                            select\n                                g.id,\n                                count(p.user_id) player_amount\n                            from\n                                bingo.games as g\n                                join bingo.players p on p.game_id = g.id\n                            group by\n                                g.id\n                        ) g on g.id = joinable_game.id\n                        left outer join lateral (\n                            select\n                                ft.game_template_id,\n                                count(ft.game_template_id) field_amount\n                            from\n                                bingo.field_templates as ft\n                            group by\n                                ft.game_template_id\n                        ) ft on ft.game_template_id = gt.id\n                ) sq\n            where \n                startable \n                or access_code is not null\n            order by \n                access_code asc, \n                owned desc, \n                startable desc\n        "
+  },
   "69fd25e5c9708256c82da33e6f78c132efbab225402f05125cdc0d39073ceb60": {
     "describe": {
       "columns": [],
@@ -337,6 +355,58 @@
       }
     },
     "query": "\n            select\n                g.id,\n                g.access_code\n            from bingo.games g\n            join bingo.players p on p.game_id = g.id\n            where \n                g.game_template_id = $1\n                and p.user_id = $2\n        "
+  },
+  "858f859d06337cd0a53a29da7e9d7cf52ed3ebb0c587cc422818cfd078373e86": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "game_template_id",
+          "ordinal": 1,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "access_code",
+          "ordinal": 2,
+          "type_info": "Text"
+        },
+        {
+          "name": "closed",
+          "ordinal": 3,
+          "type_info": "Bool"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 4,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "created_by",
+          "ordinal": 5,
+          "type_info": "Uuid"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Text",
+          "Uuid"
+        ]
+      }
+    },
+    "query": "\n                insert into bingo.games (game_template_id, access_code, created_by)\n                values ($1, $2, $3)\n                returning *\n            "
   },
   "8799c8cd1e810c83289fd453a6e8e1c63552d9531c7c5780a4084a9be03f40a8": {
     "describe": {
@@ -530,58 +600,6 @@
       }
     },
     "query": "\n            select \n                f.id as id,\n                f.checked as checked,\n                ft.caption as caption\n            from bingo.fields as f\n            inner join bingo.field_templates as ft \n                on f.field_template_id = ft.id\n            where \n                f.game_id = $1 and f.user_id = $2\n            order by \n                position\n        "
-  },
-  "e3619dc276ca60a08c26329377311037d4e5c475fc7a95ab7857d364483dd9ee": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "game_template_id",
-          "ordinal": 1,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "access_code",
-          "ordinal": 2,
-          "type_info": "Text"
-        },
-        {
-          "name": "closed",
-          "ordinal": 3,
-          "type_info": "Bool"
-        },
-        {
-          "name": "created_at",
-          "ordinal": 4,
-          "type_info": "Timestamptz"
-        },
-        {
-          "name": "created_by",
-          "ordinal": 5,
-          "type_info": "Uuid"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Uuid",
-          "Text",
-          "Uuid"
-        ]
-      }
-    },
-    "query": "\n            insert into bingo.games (game_template_id, access_code, created_by)\n            values ($1, $2, $3)\n            returning *\n        "
   },
   "e8a197131506c5e1bf99ad8f5fa83b2361efa5c7de888d03cb89be7cdb162b75": {
     "describe": {
