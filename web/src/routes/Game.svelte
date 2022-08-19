@@ -39,6 +39,7 @@
   }
 
   export let gameTemplateId: string | undefined = undefined;
+  export let gridSize: number | undefined = undefined;
   export let accessCode: string | undefined = undefined;
 
   let url: string | boolean = import.meta.env.VITE_BASE_URL_LOCAL;
@@ -54,6 +55,7 @@
   let fields: Array<Array<Field>> = [];
   let websocket: any | undefined = undefined;
   let showConfetti: undefined | Date = undefined;
+  let newUsername: string | undefined = undefined;
 
   const confettiDuration = 2000;
   const interval = () =>
@@ -65,12 +67,14 @@
     clear = setInterval(interval, confettiDuration);
   }
 
-  let newUsername: string | undefined = undefined;
+  $: gridCols = fields ? fields.length : 0;
+
+  $: console.log('ff', gridCols);
 
   onMount(async () => {
     if (gameTemplateId) {
       status = GameStatus.LOADING;
-      await ApiClient.startGame(gameTemplateId, (_status: number, data: GameUpdate) => {
+      await ApiClient.startGame(gameTemplateId, gridSize, (_status: number, data: GameUpdate) => {
         code = data.accessCode;
         fields = data.fields;
         players = data.players;
@@ -229,7 +233,7 @@
     {/if}
   </div>
 
-  <div class="grid gap-2 grid-cols-5 grid-rows-5">
+  <div class="grid gap-2 grid-cols-{gridCols}">
     {#each fields as row, i}
       {#each row as { id, text, checked, bingo } (id)}
         <div
@@ -265,7 +269,7 @@
           ? 'border-sky'
           : 'border-solitude dark:border-navy'}"
       >
-        <div class="grid grid-cols-5 overflow-hidden rounded">
+        <div class="grid grid-cols-{gridCols} overflow-hidden rounded">
           {#each hits as hit, i}
             <div class="w-3 h-3 {hit ? 'bg-sun' : 'bg-solitude dark:bg-navy'}"></div>
           {/each}
@@ -303,3 +307,4 @@
     {/if}
   </div>
 {/if}
+<div class="grid-cols-1 grid-cols-2 grid-cols-3 grid-cols-4 grid-cols-5 grid-cols-6"></div>

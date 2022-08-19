@@ -79,8 +79,10 @@
 
     // game
 
-    startGame(id: string, callback: any) {
-      return this.client.get(`/game/start/${id}`).then(response => callback(response.status, response.data));
+    startGame(id: string, gridSize: number, callback: any) {
+      return this.client
+        .get(`/game/start/${id}/${gridSize}`)
+        .then(response => callback(response.status, response.data));
     }
 
     joinGame(accessCoce: string, callback: any) {

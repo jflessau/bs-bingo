@@ -77,18 +77,27 @@ pub async fn serve(pool: PgPool, receiver: Receiver<HashMap<Uuid, DateTime<Utc>>
             "/templates/:id",
             delete(handler::template::handle_delete_template),
         )
-        .route("/game/:id", get(handler::game::ws))
-        .route("/game/start/:id", get(handler::game::handle_start_game))
-        .route("/game/leave/:id", get(handler::game::handle_leave_game))
+        .route("/game/:id", get(handler::game::websocket::ws))
+        .route(
+            "/game/start/:id/:grid_size",
+            get(handler::game::access::handle_start_game),
+        )
+        .route(
+            "/game/leave/:id",
+            get(handler::game::access::handle_leave_game),
+        )
         .route(
             "/game/join/:access_code",
-            get(handler::game::handle_join_game),
+            get(handler::game::access::handle_join_game),
         )
         .route(
             "/game/:id/username",
-            patch(handler::game::handle_update_username),
+            patch(handler::game::player::handle_update_username),
         )
-        .route("/field/:id", patch(handler::game::handle_update_field))
+        .route(
+            "/field/:id",
+            patch(handler::game::field::handle_update_field),
+        )
         .layer(middleware_stack)
         .layer(Extension(pool));
 

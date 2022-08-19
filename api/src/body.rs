@@ -27,6 +27,7 @@ pub struct TemplateIn {
 pub struct GameOut {
     pub id: Uuid,
     pub open: bool,
+    pub continued: bool,
     pub access_code: String,
     pub fields: Vec<Vec<FieldOut>>,
     pub players: Vec<PlayerOut>,

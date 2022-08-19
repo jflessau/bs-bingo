@@ -6,6 +6,7 @@
   import { Circle } from 'svelte-loading-spinners';
 
   let templateToDelete: undefined | string = undefined;
+  let templateToPlay: undefined | string = undefined;
 
   $: templatesData = $templatesStore;
 
@@ -75,7 +76,33 @@
         </p>
       </div>
       <div class="flex flex-row justify-center items-center">
-        {#if templateToDelete === template.id}
+        {#if templateToPlay === template.id}
+          <Button
+            caption="Cancel"
+            size="sm"
+            variant="secondary"
+            classes="ml-4"
+            on:click="{() => (templateToPlay = undefined)}"
+          />
+          {#if template.fieldAmount >= 9}
+            <Button
+              caption="Play 3x3"
+              size="sm"
+              variant="secondary"
+              classes="ml-4"
+              link="{`/games/start/${template.id}/3`}"
+            />
+          {/if}
+          {#if template.fieldAmount >= 25}
+            <Button
+              caption="Play 5x5"
+              size="sm"
+              variant="secondary"
+              classes="ml-4"
+              link="{`/games/start/${template.id}/5`}"
+            />
+          {/if}
+        {:else if templateToDelete === template.id}
           <Button
             caption="Don't Delete Template"
             size="sm"
@@ -110,7 +137,7 @@
               />
               <Button caption="Continue" size="sm" variant="secondary" link="{`/games/join/${template.accessCode}`}" />
             {:else}
-              <Button caption="Play" size="sm" variant="secondary" link="{`/games/start/${template.id}`}" />
+              <Button caption="Play" size="sm" variant="secondary" on:click="{() => (templateToPlay = template.id)}" />
             {/if}
           {/if}
         {/if}

@@ -35,7 +35,7 @@
   {#if authData === AuthStatus.SUCCESS}
     <div class="container mx-auto px-2">
       <Route path="/" component="{Home}" />
-      <Route path="/games/start/:gameTemplateId" component="{Game}" />
+      <Route path="/games/start/:gameTemplateId/:gridSize" component="{Game}" />
       <Route path="/games/join/:accessCode" component="{Game}" />
       <Route path="/create-template" component="{CreateTemplate}" />
     </div>
