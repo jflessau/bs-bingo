@@ -69,8 +69,6 @@
 
   $: gridCols = fields ? fields.length : 0;
 
-  $: console.log('ff', gridCols);
-
   onMount(async () => {
     if (gameTemplateId) {
       status = GameStatus.LOADING;
@@ -108,7 +106,7 @@
   });
 
   function startWebSocket() {
-    console.log('start websocket');
+    console.info('start websocket');
     websocket = new WebSocket(`${apiWsUrl}/game/${id}`);
 
     websocket.addEventListener('message', event => {
@@ -307,4 +305,6 @@
     {/if}
   </div>
 {/if}
+
+<!-- grid-cols-x is used conditionally and tailwind won't include these classes otherwise -->
 <div class="grid-cols-1 grid-cols-2 grid-cols-3 grid-cols-4 grid-cols-5 grid-cols-6"></div>

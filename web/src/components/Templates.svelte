@@ -60,8 +60,16 @@
   <p class="text-center w-full">No templates found :(</p>
 {:else}
   {#each templatesData.templates as template (template.id)}
-    <div class="mt-4 p-4 flex flex-row justify-between items-center rounded-lg bg-solitude dark:bg-navy">
-      <div class="flex flex-col justify-start items-start mr-4">
+    <div
+      class="mt-4 p-4 flex flex-row {templateToDelete === template.id || templateToPlay === template.id
+        ? 'justify-end'
+        : 'justify-between'} sm:justify-between items-center rounded-lg bg-solitude dark:bg-navy"
+    >
+      <div
+        class="{templateToDelete === template.id || templateToPlay === template.id
+          ? 'hidden'
+          : 'flex'} sm:flex flex-col justify-start items-start mr-4"
+      >
         <p class="font-bold break-all">{template.title}</p>
         <p class="mr-4 text-sm">
           {#if template.owned}
@@ -91,6 +99,15 @@
               variant="secondary"
               classes="ml-4"
               link="{`/games/start/${template.id}/3`}"
+            />
+          {/if}
+          {#if template.fieldAmount >= 16}
+            <Button
+              caption="Play 4x4"
+              size="sm"
+              variant="secondary"
+              classes="ml-4"
+              link="{`/games/start/${template.id}/4`}"
             />
           {/if}
           {#if template.fieldAmount >= 25}

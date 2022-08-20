@@ -20,7 +20,7 @@ pub async fn handle_list_templates(
         r#"
             select
                 sq.id,
-                sq.title, 
+                sq.title,
                 sq.field_amount,
                 sq.player_amount,
                 sq.owned,
@@ -30,7 +30,8 @@ pub async fn handle_list_templates(
             from
                 (
                     select
-                        distinct on (gt.id) gt.id,
+                        distinct on (gt.id) 
+                        gt.id,
                         gt.title,
                         ft.field_amount,
                         coalesce(g.player_amount, 0) player_amount,
@@ -40,17 +41,22 @@ pub async fn handle_list_templates(
                             and gt.approved
                         ) public,
                         gt.created_by = $1
-                        or (
+                        or(
                             gt.public
                             and gt.approved
                         ) startable,
-                        joinable_game.access_code
+                        joinable_game.access_code,
+                        joinable_game_player.game_id joinable_game_player_game_id
                     from
                         bingo.game_templates gt
+                        
                         left outer join bingo.games active_game on active_game.game_template_id = gt.id
-                        left outer join bingo.fields joinable_game_field on joinable_game_field.game_id = active_game.id
-                        and joinable_game_field.user_id = $1
-                        left outer join bingo.games joinable_game on joinable_game.id = joinable_game_field.game_id
+                        
+                        left outer join bingo.players joinable_game_player on joinable_game_player.user_id = $1
+                            and joinable_game_player.game_id = active_game.id
+                        
+                        left outer join bingo.games joinable_game on joinable_game.id = joinable_game_player.game_id
+                        
                         left outer join lateral (
                             select
                                 g.id,
@@ -61,6 +67,7 @@ pub async fn handle_list_templates(
                             group by
                                 g.id
                         ) g on g.id = joinable_game.id
+                        
                         left outer join lateral (
                             select
                                 ft.game_template_id,
@@ -70,13 +77,14 @@ pub async fn handle_list_templates(
                             group by
                                 ft.game_template_id
                         ) ft on ft.game_template_id = gt.id
+                    order by gt.id, joinable_game_player_game_id asc
                 ) sq
-            where 
-                startable 
+            where
+                startable
                 or access_code is not null
-            order by 
-                access_code asc, 
-                owned desc, 
+            order by
+                access_code asc,
+                owned desc,
                 startable desc
         "#,
         identity.user_id

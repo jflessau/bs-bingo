@@ -145,16 +145,6 @@ pub async fn list_fields(
     let mut result: Vec<Vec<FieldOut>> = Vec::new();
     let mut v: Vec<FieldOut> = Vec::new();
 
-    tracing::info!("fields.len(): {}", fields.len());
-    tracing::info!(
-        "fields.len() as f32).sqrt(): {}",
-        (fields.len() as f32).sqrt()
-    );
-    tracing::info!(
-        "(fields.len() as f32).sqrt() as usize: {}",
-        (fields.len() as f32).sqrt() as usize
-    );
-
     if fields.len() > 0 {
         let grid_size = (fields.len() as f32).sqrt() as usize;
         for (i, field) in fields.enumerate() {

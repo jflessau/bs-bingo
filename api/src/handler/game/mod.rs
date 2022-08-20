@@ -67,21 +67,31 @@ fn walk(
     n += 1;
     let grid_size = grid_size(fields.len()).expect("grid_size fails") as i32;
 
+    // assert index is not out of bounds
+
     if idx > (fields.len() - 1) as i32 || idx < 0 {
         return hits;
     }
+
+    // ensure to start walking right on fields of the left column only
 
     if direction == &Direction::Right && (idx != start_idx && idx % grid_size == 0) {
         return hits;
     }
 
+    // count hits
+
     if fields[idx as usize] {
         hits += 1;
     };
 
+    // return when walked enough steps
+
     if n as i32 == grid_size || n > 1000 {
         return hits;
     }
+
+    // set next index according to walk direction
 
     let next_idx = match direction {
         Direction::Right => idx + 1,

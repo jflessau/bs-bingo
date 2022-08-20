@@ -66,7 +66,7 @@ pub async fn handle_start_game(
         .amount
         .unwrap_or(0);
 
-        if field_amount < grid_size {
+        if field_amount < grid_size * grid_size {
             return Err(Error::BadRequest(format!(
                 "Game template has not enough fields ({}) for the selected grid size of {}.",
                 field_amount, grid_size
