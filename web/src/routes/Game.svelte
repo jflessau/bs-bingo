@@ -2,9 +2,10 @@
   import Button from './../components/Button.svelte';
   import { Circle } from 'svelte-loading-spinners';
   import { Confetti } from 'svelte-confetti';
-  import { createNotification } from './../components/Sackbar.svelte';
+  import { createNotification, toggleNotifications } from './../components/Sackbar.svelte';
   import { onMount } from 'svelte';
   import { apiWsUrl, ApiClient } from './../api.svelte';
+  import { notificationsStore } from './../store.svelte';
 
   interface GameUpdate {
     id: string;
@@ -56,6 +57,8 @@
   let websocket: any | undefined = undefined;
   let showConfetti: undefined | Date = undefined;
   let newUsername: string | undefined = undefined;
+
+  $: notificationsData = $notificationsStore;
 
   const confettiDuration = 2000;
   const interval = () =>
@@ -303,6 +306,12 @@
         classes="mt-4"
       />
     {/if}
+
+    <h2 class="font-bold text-lg mb-4 mt-16">Settings</h2>
+    <label>
+      <input type="checkbox" checked="{notificationsData.enabled}" on:change="{toggleNotifications}" />
+      Receive in-game notifications about your opponents.
+    </label>
   </div>
 {/if}
 

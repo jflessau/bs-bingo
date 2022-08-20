@@ -4,18 +4,26 @@
 
   export function createNotification(text: string) {
     let notificationsData = get(notificationsStore);
+    if (notificationsData.enabled) {
+      let notifications = [...notificationsData.notifications];
 
-    if (notificationsData.length < 3) {
-      notificationsData.push({
-        id: Math.floor(Math.random() * 1000000) + '',
-        createdAt: new Date(),
-        agePercent: 0,
-        level: NotificationLevel.INFO,
-        text,
-      });
+      if (notifications.length < 3) {
+        notifications.push({
+          id: Math.floor(Math.random() * 1000000) + '',
+          createdAt: new Date(),
+          agePercent: 0,
+          level: NotificationLevel.INFO,
+          text,
+        });
+      }
+
+      notificationsStore.set({ ...notificationsData, notifications: notifications });
     }
+  }
 
-    notificationsStore.set(notificationsData);
+  export function toggleNotifications() {
+    let notificationsData = get(notificationsStore);
+    notificationsStore.set({ ...notificationsData, enabled: !notificationsData.enabled });
   }
 </script>
 
@@ -28,13 +36,13 @@
   $: notificationsData = $notificationsStore;
 
   const updateNotifications = () => {
-    let notifications = notificationsData;
+    let notifications = [...notificationsData.notifications];
     notifications = notifications.filter(v => new Date().getTime() - v.createdAt.getTime() < maxNotificationAge);
     notifications = notifications.map(v => {
       v.agePercent = ((new Date().getTime() - v.createdAt.getTime()) / maxNotificationAge) * 100;
       return v;
     });
-    notificationsStore.set(notifications);
+    notificationsStore.set({ ...notificationsData, notifications: notifications });
   };
 
   let interval: ReturnType<typeof setInterval>;
@@ -48,7 +56,7 @@
 </script>
 
 <div class="pr-2 sm:pr-4 fixed bottom-0 right-0" style="width: 300px;">
-  {#each notificationsData as notification (notification.id)}
+  {#each notificationsData.notifications as notification (notification.id)}
     <div
       class="w-full mb-2 sm:mb-4 max-w-xs flex flex-row overflow-hidden rounded-lg bg-white border border-sky drop-shadow-2xl dark:drop-shadow-none"
       in:fly
@@ -66,9 +74,9 @@
       <div
         class="w-12 flex bg-sky flex-col justify-center items-center cursor-pointer select-none"
         on:click="{() => {
-          let notifications = notificationsData;
+          let notifications = [...notificationsData.notifications];
           notifications = notifications.filter(v => v.id !== notification.id);
-          notificationsStore.set(notifications);
+          notificationsStore.set({ ...notificationsData, notifications: notifications });
         }}"
       >
         <p class="w-12 text-white text-center font-bold text-lg">X</p>

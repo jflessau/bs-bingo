@@ -19,6 +19,7 @@
     INFO,
     WARNING,
   }
+
   export interface Notification {
     id: string;
     createdAt: Date;
@@ -27,7 +28,12 @@
     text: string;
   }
 
-  export const notificationsStore: Writable<Notification[]> = writable([]);
+  export interface Notifications {
+    enabled: boolean;
+    notifications: Notification[];
+  }
+
+  export const notificationsStore: Writable<Notifications> = writable({ enabled: true, notifications: [] });
 
   // templates
 
