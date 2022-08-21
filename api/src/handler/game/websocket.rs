@@ -1,7 +1,7 @@
 use crate::{
     body::MessageOut,
-    error::Result,
-    handler::game::{field::list_fields, player::get_players},
+    error::{Error, Result},
+    handler::game::{field::list_fields, player::ger_players},
     server::{AppState, Identity},
 };
 use axum::{
@@ -65,19 +65,11 @@ pub async fn send_game_update_messages(
     .fetch_one(pool)
     .await?;
 
-    // let mut listener = PgListener::connect_with(pool).await?;
-
-    // listener
-    //     .listen_all(vec!["fields_update", "players_update"])
-    //     .await?;
-
-    // while socket is healthy: listen for postgres notifications and send respective updates to client
+    // while socket is healthy: listen for changes in tokio watch and send respective updates to client
 
     let mut latest_game_update_at = Utc::now() - Duration::days(1);
 
     while socket_healthy {
-        // sleep(TokioDuration::from_millis(100)).await;
-
         if receiver.changed().await.is_ok() {
             let game_updated_recently = receiver
                 .borrow()
@@ -87,14 +79,15 @@ pub async fn send_game_update_messages(
 
             if game_updated_recently {
                 latest_game_update_at = Utc::now();
-
                 let mut messages = Vec::new();
 
                 if game_id == game.id {
-                    let fields = list_fields(game_id, user_id, pool).await?;
+                    let mut conn = pool.acquire().await?;
+
+                    let fields = list_fields(game_id, user_id, &mut *conn).await?;
                     messages.push(serde_json::to_string(&MessageOut::Fields(fields))?);
 
-                    let players = get_players(game_id, user_id, pool).await?;
+                    let players = ger_players(game_id, user_id, &mut *conn).await?;
                     messages.push(serde_json::to_string(&MessageOut::Players(players))?);
 
                     for message in messages {
@@ -107,6 +100,7 @@ pub async fn send_game_update_messages(
             }
         } else {
             tracing::warn!("sender has been dropped");
+            return Err(Error::InternalServer);
         }
     }
 

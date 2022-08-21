@@ -7,7 +7,7 @@ use axum::{
     extract::{Extension, Path},
     Json,
 };
-use sqlx::postgres::PgPool;
+use sqlx::PgConnection;
 use uuid::Uuid;
 
 pub async fn handle_update_username(
@@ -31,7 +31,11 @@ pub async fn handle_update_username(
     Ok(())
 }
 
-pub async fn get_players(game_id: Uuid, user_id: Uuid, pool: &PgPool) -> Result<Vec<PlayerOut>> {
+pub async fn ger_players(
+    game_id: Uuid,
+    user_id: Uuid,
+    conn: &mut PgConnection,
+) -> Result<Vec<PlayerOut>> {
     let mut players = sqlx::query!(
         r#"
             select
@@ -54,7 +58,7 @@ pub async fn get_players(game_id: Uuid, user_id: Uuid, pool: &PgPool) -> Result<
         "#,
         game_id,
     )
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?
     .into_iter()
     .map(|v| PlayerOut {

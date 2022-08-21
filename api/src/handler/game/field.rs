@@ -5,15 +5,15 @@ use crate::{
 };
 use axum::extract::{Extension, Path};
 use rand::{seq::SliceRandom, thread_rng};
-use sqlx::postgres::PgPool;
+use sqlx::PgConnection;
 use uuid::Uuid;
 
-pub async fn prepare_fields(
+pub async fn create_fields_for_player(
     game_template_id: Uuid,
     game_id: Uuid,
     user_id: Uuid,
     grid_size: i64,
-    pool: &PgPool,
+    conn: &mut PgConnection,
 ) -> Result<Vec<Vec<FieldOut>>> {
     let existing_fields = sqlx::query!(
         r#"
@@ -30,7 +30,7 @@ pub async fn prepare_fields(
         game_id,
         user_id,
     )
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     if existing_fields.is_empty() || (existing_fields.len() as i64) < grid_size {
@@ -41,7 +41,7 @@ pub async fn prepare_fields(
             "#,
             game_template_id
         )
-        .fetch_all(pool)
+        .fetch_all(&mut *conn)
         .await?
         .iter()
         .map(|v| v.id)
@@ -63,14 +63,14 @@ pub async fn prepare_fields(
             "delete from bingo.fields where id = any($1)",
             &existing_fields.iter().map(|v| v.id).collect::<Vec<Uuid>>()
         )
-        .execute(pool)
+        .execute(&mut *conn)
         .await?;
         sqlx::query!(
             "delete from bingo.players where user_id = $1 and game_id = $2",
             user_id,
             game_id
         )
-        .execute(pool)
+        .execute(&mut *conn)
         .await?;
 
         sqlx::query!(
@@ -82,7 +82,7 @@ pub async fn prepare_fields(
             game_id,
             "Anonymous player",
         )
-        .execute(pool)
+        .execute(&mut *conn)
         .await?;
 
         field_template_ids.shuffle(&mut thread_rng());
@@ -99,18 +99,18 @@ pub async fn prepare_fields(
                 i as i16,
                 user_id,
             )
-            .execute(pool)
+            .execute(&mut *conn)
             .await?;
         }
     }
 
-    list_fields(game_id, user_id, pool).await
+    list_fields(game_id, user_id, &mut *conn).await
 }
 
 pub async fn list_fields(
     game_id: Uuid,
     user_id: Uuid,
-    pool: &PgPool,
+    conn: &mut PgConnection,
 ) -> Result<Vec<Vec<FieldOut>>> {
     let fields = sqlx::query!(
         r#"
@@ -129,7 +129,7 @@ pub async fn list_fields(
         game_id,
         user_id,
     )
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?
     .into_iter()
     .map(|v| FieldOut {
@@ -171,7 +171,7 @@ pub async fn handle_update_field(
     Path(id): Path<Uuid>,
     Extension(state): Extension<AppState>,
 ) -> Result<()> {
-    let pool = state.pool;
+    let pool = &state.pool;
     let user_id = identity.user_id;
 
     let _game = sqlx::query!(
@@ -189,14 +189,14 @@ pub async fn handle_update_field(
         id,
         user_id,
     )
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await?;
 
     sqlx::query!(
         "update bingo.fields set checked = not checked where id = $1",
         id
     )
-    .execute(&pool)
+    .execute(pool)
     .await?;
 
     Ok(())

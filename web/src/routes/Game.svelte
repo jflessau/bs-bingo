@@ -147,6 +147,20 @@
           createNotification(`${playersJoined} player${playersJoined > 1 ? 's' : ''} joined!`);
         }
 
+        // notification if opponent left
+
+        for (let player of players) {
+          let present: boolean = false;
+          for (let newPlayer of playersUpdate) {
+            if (newPlayer.userId === player.userId) {
+              present = true;
+            }
+          }
+          if (!present) {
+            createNotification(`${player.username} left.`);
+          }
+        }
+
         // notification if opponent got bingo
 
         for (let player of players) {
@@ -235,7 +249,7 @@
   </div>
 
   <div class="grid gap-2 grid-cols-{gridCols}">
-    {#each fields as row, i}
+    {#each fields as row}
       {#each row as { id, text, checked, bingo } (id)}
         <div
           on:click="{() => toggleField(id)}"
