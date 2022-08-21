@@ -1,7 +1,7 @@
 use crate::{
     body::GameOut,
     error::{Error, Result},
-    handler::game::{field::prepare_fields, player::get_players},
+    handler::game::{field::create_fields_for_player, player::ger_players},
     server::{AppState, Identity},
 };
 use axum::{
@@ -9,7 +9,7 @@ use axum::{
     Json,
 };
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use sqlx::postgres::PgPool;
+use sqlx::PgConnection;
 use uuid::Uuid;
 
 pub async fn handle_start_game(
@@ -17,7 +17,7 @@ pub async fn handle_start_game(
     Path((game_template_id, grid_size)): Path<(Uuid, i64)>,
     Extension(state): Extension<AppState>,
 ) -> Result<Json<GameOut>> {
-    let pool = &state.pool;
+    let mut transaction = state.pool.begin().await?;
     let user_id = identity.user_id;
 
     if !(2..=8).contains(&grid_size) {
@@ -40,11 +40,11 @@ pub async fn handle_start_game(
         game_template_id,
         user_id,
     )
-    .fetch_optional(pool)
+    .fetch_optional(&mut *transaction)
     .await?;
 
-    if let Some(game) = game {
-        join_game(user_id, game.access_code, pool).await
+    let result = if let Some(game) = game {
+        join_game(user_id, game.access_code, &mut *transaction).await
     } else {
         let game_template = sqlx::query!(
             r#"
@@ -54,14 +54,14 @@ pub async fn handle_start_game(
             game_template_id,
             user_id
         )
-        .fetch_one(pool)
+        .fetch_one(&mut *transaction)
         .await?;
 
         let field_amount = sqlx::query!(
             "select count(id) amount from bingo.field_templates where game_template_id = $1",
             game_template.id
         )
-        .fetch_one(pool)
+        .fetch_one(&mut *transaction)
         .await?
         .amount
         .unwrap_or(0);
@@ -90,13 +90,19 @@ pub async fn handle_start_game(
             grid_size as i32,
             user_id
         )
-        .fetch_one(pool)
+        .fetch_one(&mut *transaction)
         .await?;
 
-        let fields =
-            prepare_fields(game.game_template_id, game.id, user_id, grid_size, pool).await?;
+        let fields = create_fields_for_player(
+            game.game_template_id,
+            game.id,
+            user_id,
+            grid_size,
+            &mut *transaction,
+        )
+        .await?;
 
-        let players = get_players(game.id, user_id, pool).await?;
+        let players = ger_players(game.id, user_id, &mut *transaction).await?;
 
         let username = players
             .iter()
@@ -116,7 +122,11 @@ pub async fn handle_start_game(
             players,
             username,
         }))
-    }
+    };
+
+    transaction.commit().await?;
+
+    result
 }
 
 pub async fn handle_join_game(
@@ -124,10 +134,14 @@ pub async fn handle_join_game(
     Path(access_code): Path<String>,
     Extension(state): Extension<AppState>,
 ) -> Result<Json<GameOut>> {
-    let pool = state.pool;
+    let mut transaction = state.pool.begin().await?;
     let user_id = identity.user_id;
 
-    join_game(user_id, access_code, &pool).await
+    let result = join_game(user_id, access_code, &mut *transaction).await?;
+
+    transaction.commit().await?;
+
+    Ok(result)
 }
 
 pub async fn handle_leave_game(
@@ -183,7 +197,11 @@ pub async fn handle_leave_game(
     Ok(())
 }
 
-pub async fn join_game(user_id: Uuid, access_code: String, pool: &PgPool) -> Result<Json<GameOut>> {
+pub async fn join_game(
+    user_id: Uuid,
+    access_code: String,
+    conn: &mut PgConnection,
+) -> Result<Json<GameOut>> {
     let game = sqlx::query!(
         r#"
             select 
@@ -201,19 +219,19 @@ pub async fn join_game(user_id: Uuid, access_code: String, pool: &PgPool) -> Res
         "#,
         access_code
     )
-    .fetch_one(pool)
+    .fetch_one(&mut *conn)
     .await?;
 
-    let fields = prepare_fields(
+    let fields = create_fields_for_player(
         game.game_template_id,
         game.id,
         user_id,
         game.grid_size.into(),
-        pool,
+        &mut *conn,
     )
     .await?;
 
-    let players = get_players(game.id, user_id, pool).await?;
+    let players = ger_players(game.id, user_id, &mut *conn).await?;
 
     let username = players
         .iter()
