@@ -44,7 +44,7 @@ pub async fn handle_start_game(
     .await?;
 
     let result = if let Some(game) = game {
-        join_game(user_id, game.access_code, &mut *transaction).await
+        join_game(user_id, game.access_code, &mut transaction).await
     } else {
         let game_template = sqlx::query!(
             r#"
@@ -68,8 +68,7 @@ pub async fn handle_start_game(
 
         if field_amount < grid_size * grid_size {
             return Err(Error::BadRequest(format!(
-                "Game template has not enough fields ({}) for the selected grid size of {}.",
-                field_amount, grid_size
+                "Game template has not enough fields ({field_amount}) for the selected grid size of {grid_size}."
             )));
         }
 
@@ -98,11 +97,11 @@ pub async fn handle_start_game(
             game.id,
             user_id,
             grid_size,
-            &mut *transaction,
+            &mut transaction,
         )
         .await?;
 
-        let players = ger_players(game.id, user_id, &mut *transaction).await?;
+        let players = ger_players(game.id, user_id, &mut transaction).await?;
 
         let username = players
             .iter()
@@ -137,7 +136,7 @@ pub async fn handle_join_game(
     let mut transaction = state.pool.begin().await?;
     let user_id = identity.user_id;
 
-    let result = join_game(user_id, access_code, &mut *transaction).await?;
+    let result = join_game(user_id, access_code, &mut transaction).await?;
 
     transaction.commit().await?;
 

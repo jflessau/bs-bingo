@@ -49,8 +49,7 @@ pub async fn create_fields_for_player(
 
         if (field_template_ids.len() as i64) < grid_size {
             return Err(Error::BadRequest(format!(
-                "Template has not enough fields for grid size of {}",
-                grid_size
+                "Template has not enough fields for grid size of {grid_size}"
             )));
         }
         if !(2..=8).contains(&grid_size) {

@@ -1,6 +1,6 @@
 use crate::{
     body::MessageOut,
-    error::{Error, Result},
+    error::Result,
     handler::game::{field::list_fields, player::ger_players},
     server::{AppState, Identity},
 };
@@ -84,10 +84,10 @@ pub async fn send_game_update_messages(
                 if game_id == game.id {
                     let mut conn = pool.acquire().await?;
 
-                    let fields = list_fields(game_id, user_id, &mut *conn).await?;
+                    let fields = list_fields(game_id, user_id, &mut conn).await?;
                     messages.push(serde_json::to_string(&MessageOut::Fields(fields))?);
 
-                    let players = ger_players(game_id, user_id, &mut *conn).await?;
+                    let players = ger_players(game_id, user_id, &mut conn).await?;
                     messages.push(serde_json::to_string(&MessageOut::Players(players))?);
 
                     for message in messages {
@@ -99,8 +99,7 @@ pub async fn send_game_update_messages(
                 }
             }
         } else {
-            tracing::warn!("sender has been dropped");
-            return Err(Error::InternalServer);
+            panic!("sender is dropped")
         }
     }
 
