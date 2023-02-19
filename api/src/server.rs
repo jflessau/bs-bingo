@@ -14,7 +14,7 @@ use http::{
 use sqlx::postgres::PgPool;
 use std::{collections::HashMap, env, net::SocketAddr};
 use tokio::sync::watch::Receiver;
-use tokio::time::{sleep, Duration};
+use tokio::time::{interval, sleep, Duration};
 use tower::ServiceBuilder;
 use tower_http::{
     cors::{CorsLayer, Origin},
@@ -62,7 +62,7 @@ pub async fn serve(pool: PgPool, receiver: Receiver<HashMap<Uuid, DateTime<Utc>>
         .layer(cors)
         .layer(Extension(AppState {
             pool: pool.clone(),
-            receiver,
+            receiver: receiver.clone(),
         }));
 
     let app = Router::new()
@@ -106,6 +106,17 @@ pub async fn serve(pool: PgPool, receiver: Receiver<HashMap<Uuid, DateTime<Utc>>
 
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
+        .with_graceful_shutdown(async {
+            let mut interval = interval(Duration::from_millis(100));
+            loop {
+                interval.tick().await;
+                if let Err(err) = receiver.has_changed() {
+                    tracing::error!("channel connecting postgres notifications listener to websocket is broken, error: {}", err);
+                    break;
+                }
+            }
+            tracing::info!("shutting down server due to broken channel");
+        })
         .await
         .expect("starting axum server fails");
 }

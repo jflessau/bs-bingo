@@ -99,7 +99,10 @@ pub async fn send_game_update_messages(
                 }
             }
         } else {
-            panic!("sender is dropped")
+            tracing::error!(
+                "channel connecting postgres notifications listener to websocket is broken"
+            );
+            break;
         }
     }
 

@@ -33,8 +33,12 @@ async fn main() {
 
     let (sender, receiver) = watch::channel(HashMap::new());
 
-    let _ = tokio::join!(
-        server::serve(pool.clone(), receiver.clone()),
-        pg_listen::listen(&pool, sender)
+    tokio::select!(
+        _ = server::serve(pool.clone(), receiver.clone()) => {
+            tracing::error!("serfer::serve shut down"); return;
+        },
+        _ = pg_listen::listen(&pool, sender) => {
+            tracing::error!("pg_listener::listen shut down"); return;
+        }
     );
 }
