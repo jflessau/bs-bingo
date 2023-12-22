@@ -112,7 +112,7 @@ fn walk(
 fn grid_size(field_amount: usize) -> Result<usize> {
     let grid_size = (field_amount as f32).sqrt();
 
-    if !(2..10).into_iter().any(|v| v as f32 == grid_size) {
+    if !(2..10).any(|v| v as f32 == grid_size) {
         return Err(Error::InternalServer);
     }
 

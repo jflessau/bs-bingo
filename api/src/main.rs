@@ -35,10 +35,10 @@ async fn main() {
 
     tokio::select!(
         _ = server::serve(pool.clone(), receiver.clone()) => {
-            tracing::error!("serfer::serve shut down"); return;
+            tracing::error!("serfer::serve shut down");
         },
         _ = pg_listen::listen(&pool, sender) => {
-            tracing::error!("pg_listener::listen shut down"); return;
+            tracing::error!("pg_listener::listen shut down");
         }
     );
 }

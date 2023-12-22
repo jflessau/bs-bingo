@@ -3,7 +3,7 @@
   import Home from './routes/Home.svelte';
   import Game from './routes/Game.svelte';
   import CreateTemplate from './routes/CreateTemplate.svelte';
-  import Snackbar from './components/Sackbar.svelte';
+  import Snackbar from './components/Snackbar.svelte';
   import { Router, Route } from 'svelte-routing';
   import { ApiClient } from './api.svelte';
   import { AuthStatus, authStore } from './store.svelte';

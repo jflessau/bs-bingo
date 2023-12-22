@@ -1,6 +1,6 @@
 <script lang="ts" context="module">
   import { get } from 'svelte/store';
-  import { NotificationLevel, notificationsStore } from './../store.svelte';
+  import { NotificationLevel, notificationsStore } from '../store.svelte';
 
   export function createNotification(text: string) {
     let notificationsData = get(notificationsStore);

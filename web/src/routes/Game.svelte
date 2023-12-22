@@ -2,7 +2,7 @@
   import Button from './../components/Button.svelte';
   import { Circle } from 'svelte-loading-spinners';
   import { Confetti } from 'svelte-confetti';
-  import { createNotification, toggleNotifications } from './../components/Sackbar.svelte';
+  import { createNotification, toggleNotifications } from '../components/Snackbar.svelte';
   import { onMount } from 'svelte';
   import { apiWsUrl, ApiClient } from './../api.svelte';
   import { notificationsStore } from './../store.svelte';

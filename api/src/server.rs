@@ -43,6 +43,7 @@ pub async fn serve(pool: PgPool, receiver: Receiver<HashMap<Uuid, DateTime<Utc>>
             Method::POST,
             Method::DELETE,
             Method::PATCH,
+            Method::OPTIONS,
         ])
         .allow_origin(Origin::list(vec![env::var("CORS_ALLOWED_ORIGIN")
             .expect("CORS_ALLOWED_ORIGIN not set")
@@ -101,7 +102,14 @@ pub async fn serve(pool: PgPool, receiver: Receiver<HashMap<Uuid, DateTime<Utc>>
         .layer(middleware_stack)
         .layer(Extension(pool));
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let environment = env::var("ENVIRONMENT").expect("ENVIRONMENT not set");
+
+    let addr = if environment == "production" {
+        SocketAddr::from(([0, 0, 0, 0], port))
+    } else {
+        SocketAddr::from(([127, 0, 0, 1], port))
+    };
+
     tracing::info!("listening on {}", addr);
 
     axum::Server::bind(&addr)
