@@ -20,3 +20,7 @@ sqlx migrate run
 Start the frontend dev server with `npm i && npm run dev` and run the API service with `cargo run`.
 
 Happy hacking :)
+
+## Screenshot
+
+<img alt="chat bot's avatar image showing a robots shiny metal face" src="screenshot.jpg" width="540px"/>
